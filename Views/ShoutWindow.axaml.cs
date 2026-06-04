@@ -12,7 +12,9 @@ public partial class ShoutWindow : Window
     private readonly ShoutMessage _message;
     private readonly DispatcherTimer _countdownTimer;
     private readonly DispatcherTimer _topmostReassertTimer;
+    private readonly DispatcherTimer _fullscreenReassertTimer;
     private int _remainingSeconds;
+    private int _fullscreenReassertTicks;
 
     public ShoutWindow()
         : this(new ShoutMessage(
@@ -48,6 +50,12 @@ public partial class ShoutWindow : Window
         };
         _topmostReassertTimer.Tick += (_, _) => PlatformTopmostService.Reassert(this);
 
+        _fullscreenReassertTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _fullscreenReassertTimer.Tick += FullscreenReassertTimer_OnTick;
+
         ConfigureWindow();
         ApplyTheme();
         ApplyMessage();
@@ -68,6 +76,7 @@ public partial class ShoutWindow : Window
         {
             SystemDecorations = SystemDecorations.None;
             CanResize = false;
+            WindowStartupLocation = WindowStartupLocation.Manual;
             WindowState = WindowState.FullScreen;
             ShowInTaskbar = false;
             TitleText.FontSize = 30;
@@ -129,6 +138,13 @@ public partial class ShoutWindow : Window
 
     private void ShoutWindow_OnOpened(object? sender, EventArgs e)
     {
+        if (_message.Mode == ShoutDisplayMode.Fullscreen)
+        {
+            ApplyFullscreenState();
+            _fullscreenReassertTicks = 0;
+            _fullscreenReassertTimer.Start();
+        }
+
         PlatformTopmostService.Apply(this, _message.Topmost);
         Dispatcher.UIThread.Post(UpdateMessageLayout, DispatcherPriority.Loaded);
 
@@ -147,6 +163,41 @@ public partial class ShoutWindow : Window
     {
         _countdownTimer.Stop();
         _topmostReassertTimer.Stop();
+        _fullscreenReassertTimer.Stop();
+    }
+
+    private void FullscreenReassertTimer_OnTick(object? sender, EventArgs e)
+    {
+        ApplyFullscreenState();
+        _fullscreenReassertTicks++;
+
+        if (_fullscreenReassertTicks >= 8)
+        {
+            _fullscreenReassertTimer.Stop();
+        }
+    }
+
+    private void ApplyFullscreenState()
+    {
+        WindowState = WindowState.FullScreen;
+
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        if (screen is null)
+        {
+            return;
+        }
+
+        var bounds = screen.Bounds;
+        var scaling = screen.Scaling <= 0 ? 1 : screen.Scaling;
+
+        Position = bounds.Position;
+        Width = Math.Ceiling(bounds.Width / scaling);
+        Height = Math.Ceiling(bounds.Height / scaling);
     }
 
     private void CountdownTimer_OnTick(object? sender, EventArgs e)
