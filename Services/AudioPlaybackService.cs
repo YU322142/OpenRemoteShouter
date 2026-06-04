@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using NAudio.Wave;
 
 namespace RemoteShouter.Services;
@@ -7,9 +8,11 @@ public sealed class AudioPlaybackService
 {
     private static readonly string[] PlayerCandidates =
     [
+        "paplay",
+        "aplay",
+        "pw-play",
         "ffplay",
         "mpv",
-        "mpg123",
         "cvlc",
         "vlc"
     ];
@@ -50,7 +53,7 @@ public sealed class AudioPlaybackService
 
         return OperatingSystem.IsWindows()
             ? "Windows NAudio playback"
-            : "No player found. Install ffmpeg(ffplay), mpv, or mpg123.";
+            : "No player found. Install pulseaudio-utils(paplay), alsa-utils(aplay), ffmpeg(ffplay), or mpv.";
     }
 
     private static string? FindOnPath(string command)
@@ -102,9 +105,20 @@ public sealed class AudioPlaybackService
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Unable to start audio player: {playerPath}");
 
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
         try
         {
             await process.WaitForExitAsync(cancellationToken);
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+            if (process.ExitCode != 0)
+            {
+                var details = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
+                throw new InvalidOperationException(
+                    $"Audio player exited with code {process.ExitCode}: {details.Trim()}");
+            }
         }
         catch (OperationCanceledException)
         {
@@ -122,25 +136,31 @@ public sealed class AudioPlaybackService
         var percentVolume = Math.Clamp((int)Math.Round(volume * 100), 0, 100);
         switch (playerName)
         {
+            case "paplay":
+                startInfo.ArgumentList.Add(
+                    $"--volume={Math.Clamp((int)(volume * 65536), 0, 65536).ToString(CultureInfo.InvariantCulture)}");
+                startInfo.ArgumentList.Add(filePath);
+                break;
+            case "aplay":
+                startInfo.ArgumentList.Add("-q");
+                startInfo.ArgumentList.Add(filePath);
+                break;
+            case "pw-play":
+                startInfo.ArgumentList.Add(filePath);
+                break;
             case "ffplay":
                 startInfo.ArgumentList.Add("-nodisp");
                 startInfo.ArgumentList.Add("-autoexit");
                 startInfo.ArgumentList.Add("-loglevel");
                 startInfo.ArgumentList.Add("quiet");
                 startInfo.ArgumentList.Add("-volume");
-                startInfo.ArgumentList.Add(percentVolume.ToString());
+                startInfo.ArgumentList.Add(percentVolume.ToString(CultureInfo.InvariantCulture));
                 startInfo.ArgumentList.Add(filePath);
                 break;
             case "mpv":
                 startInfo.ArgumentList.Add("--no-video");
                 startInfo.ArgumentList.Add("--really-quiet");
-                startInfo.ArgumentList.Add($"--volume={percentVolume}");
-                startInfo.ArgumentList.Add(filePath);
-                break;
-            case "mpg123":
-                startInfo.ArgumentList.Add("-q");
-                startInfo.ArgumentList.Add("-f");
-                startInfo.ArgumentList.Add(Math.Clamp((int)(volume * 32768), 0, 32768).ToString());
+                startInfo.ArgumentList.Add($"--volume={percentVolume.ToString(CultureInfo.InvariantCulture)}");
                 startInfo.ArgumentList.Add(filePath);
                 break;
             case "cvlc":
@@ -150,7 +170,7 @@ public sealed class AudioPlaybackService
                 startInfo.ArgumentList.Add("--play-and-exit");
                 startInfo.ArgumentList.Add("--quiet");
                 startInfo.ArgumentList.Add("--gain");
-                startInfo.ArgumentList.Add(volume.ToString("0.00"));
+                startInfo.ArgumentList.Add(volume.ToString("0.00", CultureInfo.InvariantCulture));
                 startInfo.ArgumentList.Add(filePath);
                 break;
             default:

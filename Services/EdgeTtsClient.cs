@@ -21,17 +21,17 @@ public sealed class EdgeTtsClient
             "Microsoft Server Speech Text to Speech Voice (zh-CN, XiaoxiaoNeural)",
             "zh-CN-XiaoxiaoNeural",
             "zh-CN",
-            "audio-24khz-48kbitrate-mono-mp3"),
+            "riff-24khz-16bit-mono-pcm"),
         new(
             "Microsoft Server Speech Text to Speech Voice (zh-CN, XiaoyiNeural)",
             "zh-CN-XiaoyiNeural",
             "zh-CN",
-            "audio-24khz-48kbitrate-mono-mp3"),
+            "riff-24khz-16bit-mono-pcm"),
         new(
             "Microsoft Server Speech Text to Speech Voice (zh-CN, YunxiNeural)",
             "zh-CN-YunxiNeural",
             "zh-CN",
-            "audio-24khz-48kbitrate-mono-mp3")
+            "riff-24khz-16bit-mono-pcm")
     ];
 
     public async Task<byte[]> SynthesizeAsync(

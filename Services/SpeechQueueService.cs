@@ -1,11 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Globalization;
 
 namespace RemoteShouter.Services;
 
 public sealed class SpeechQueueService
 {
-    private const string Mp3OutputFormat = "audio-24khz-48kbitrate-mono-mp3";
+    private const string SpeechOutputFormat = "riff-24khz-16bit-mono-pcm";
+    private const string SpeechFileExtension = ".wav";
 
     private readonly EdgeTtsClient _edgeTtsClient = new();
     private readonly AudioPlaybackService _audioPlaybackService = new();
@@ -124,7 +126,7 @@ public sealed class SpeechQueueService
         var audio = await _edgeTtsClient.SynthesizeAsync(
             workItem.Text,
             workItem.VoiceName,
-            Mp3OutputFormat,
+            SpeechOutputFormat,
             workItem.Rate,
             workItem.Volume,
             timeout.Token);
@@ -135,9 +137,15 @@ public sealed class SpeechQueueService
     private static string GetCachePath(SpeechWorkItem workItem)
     {
         var data = Encoding.UTF8.GetBytes(
-            $"{workItem.VoiceName}\n{Mp3OutputFormat}\n{workItem.Rate}\n{workItem.Volume:0.00}\n{workItem.Text}");
+            string.Join(
+                '\n',
+                workItem.VoiceName,
+                SpeechOutputFormat,
+                workItem.Rate.ToString(CultureInfo.InvariantCulture),
+                workItem.Volume.ToString("0.00", CultureInfo.InvariantCulture),
+                workItem.Text));
         var hash = Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
-        return Path.Combine(GetCacheDirectory(), workItem.VoiceName, $"{hash}.mp3");
+        return Path.Combine(GetCacheDirectory(), workItem.VoiceName, $"{hash}{SpeechFileExtension}");
     }
 
     private static string GetCacheDirectory()
