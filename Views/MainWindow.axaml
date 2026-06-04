@@ -1,0 +1,91 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RemoteShouter.Views.MainWindow"
+        Title="OpenRemoteShouter"
+        Width="760"
+        Height="560"
+        MinWidth="520"
+        MinHeight="460"
+        FontFamily="Microsoft YaHei, PingFang SC, Noto Sans CJK SC, WenQuanYi Micro Hei, sans-serif"
+        WindowStartupLocation="CenterScreen">
+  <Grid RowDefinitions="Auto,*,Auto" Background="#F4F7F5">
+    <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#D9E1DC" BorderThickness="0,0,0,1" Padding="24,22">
+      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+        <TextBlock Grid.Row="0"
+                   Grid.Column="0"
+                   Text="OpenRemoteShouter"
+                   FontSize="30"
+                   FontWeight="Bold"
+                   Foreground="#18211D" />
+        <Border Grid.Row="0"
+                Grid.Column="1"
+                Padding="10,6"
+                CornerRadius="6"
+                Background="#E6F0EC">
+          <TextBlock x:Name="StatusText"
+                     Text="&#x542f;&#x52a8;&#x4e2d;"
+                     FontWeight="Bold"
+                     Foreground="#276955" />
+        </Border>
+        <TextBlock Grid.Row="1"
+                   Grid.ColumnSpan="2"
+                   Margin="0,10,0,0"
+                   Text="&#x7f51;&#x9875;&#x670d;&#x52a1;&#x76d1;&#x542c; 21212 &#x7aef;&#x53e3;&#x3002;&#x8bf7;&#x4f7f;&#x7528;&#x4e0b;&#x65b9;&#x5730;&#x5740;&#x5728;&#x6d4f;&#x89c8;&#x5668;&#x91cc;&#x53d1;&#x9001;&#x558a;&#x8bdd;&#x3002;"
+                   FontSize="14"
+                   Foreground="#56615C" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto" Margin="24">
+      <StackPanel Grid.Row="0" Spacing="8">
+        <TextBlock Text="&#x8bbf;&#x95ee;&#x5730;&#x5740;" FontSize="18" FontWeight="Bold" Foreground="#18211D" />
+        <TextBlock Text="&#x5c40;&#x57df;&#x7f51;&#x8bbe;&#x5907;&#x8bbf;&#x95ee;&#x65f6;&#x8bf7;&#x9009;&#x62e9;&#x5e26;&#x672c;&#x673a; IP &#x7684;&#x5730;&#x5740;&#x3002;&#x5982;&#x65e0;&#x6cd5;&#x8bbf;&#x95ee;&#xff0c;&#x8bf7;&#x68c0;&#x67e5;&#x7cfb;&#x7edf;&#x9632;&#x706b;&#x5899;&#x662f;&#x5426;&#x653e;&#x884c; 21212 &#x7aef;&#x53e3;&#x3002;"
+                   TextWrapping="Wrap"
+                   Foreground="#56615C" />
+      </StackPanel>
+
+      <Border Grid.Row="1"
+              Margin="0,14,0,14"
+              Background="#FFFFFF"
+              BorderBrush="#D9E1DC"
+              BorderThickness="1"
+              CornerRadius="8">
+        <ListBox x:Name="UrlsListBox"
+                 BorderThickness="0"
+                 Background="Transparent"
+                 FontFamily="Consolas, Cascadia Mono, monospace"
+                 FontSize="15"
+                 Padding="8" />
+      </Border>
+
+      <Grid Grid.Row="2" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
+          <TextBlock x:Name="CurrentMessageText"
+                     Text="&#x5f53;&#x524d;&#x6ca1;&#x6709;&#x6b63;&#x5728;&#x663e;&#x793a;&#x7684;&#x558a;&#x8bdd;&#x3002;"
+                     FontWeight="Bold"
+                     Foreground="#18211D" />
+          <TextBlock x:Name="ErrorText"
+                     IsVisible="False"
+                     TextWrapping="Wrap"
+                     Foreground="#9B3F37" />
+        </StackPanel>
+        <StackPanel Grid.Row="0"
+                    Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="10"
+                    VerticalAlignment="Top">
+          <Button x:Name="CopyButton" Content="&#x590d;&#x5236;&#x5730;&#x5740;" Click="CopyButton_OnClick" />
+          <Button x:Name="TestButton" Content="&#x672c;&#x673a;&#x6d4b;&#x8bd5;" Click="TestButton_OnClick" />
+          <Button x:Name="CloseDisplayButton" Content="&#x5173;&#x95ed;&#x663e;&#x793a;" Click="CloseDisplayButton_OnClick" />
+        </StackPanel>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#D9E1DC" BorderThickness="0,1,0,0" Padding="24,14">
+      <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+        <Button x:Name="StartButton" Content="&#x542f;&#x52a8;&#x670d;&#x52a1;" Click="StartButton_OnClick" />
+        <Button x:Name="StopButton" Content="&#x505c;&#x6b62;&#x670d;&#x52a1;" Click="StopButton_OnClick" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>
