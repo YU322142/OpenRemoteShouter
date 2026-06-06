@@ -3,11 +3,16 @@ name: Build OpenRemoteShouter
 on:
   push:
     branches: [ "master", "main", "dev", "portable" ]
+    tags: [ "*" ]
   workflow_dispatch:
 
 env:
   APP_NAME: OpenRemoteShouter
   PROJECT_PATH: RemoteShouter.csproj
+  CLASSISLAND_LOONGARCH_BASE: https://raw.githubusercontent.com/YU322142/ClassIsland/master
+  LOONGNIX_DOTNET_BASE: https://ftp.loongnix.cn/dotnet/8.0.25/8.0.25-1/pkg
+  LOONGARCH_DOTNET_RUNTIME_ARCHIVE: dotnet-runtime-8.0.25-linux-loongarch64.tar.xz
+  LOONGARCH_ASPNETCORE_RUNTIME_ARCHIVE: aspnetcore-runtime-8.0.25-linux-loongarch64.tar.xz
 
 jobs:
   build-portable:
@@ -180,3 +185,221 @@ jobs:
         with:
           name: OpenRemoteShouter-${{ matrix.rid }}
           path: ${{ env.PACKAGE_PATH }}
+
+  build-loongarch:
+    name: Build linux-loongarch64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Patch global.json for LoongArch build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > global.json << 'EOF'
+          {
+            "sdk": {
+              "version": "8.0.0",
+              "rollForward": "latestFeature",
+              "allowPrerelease": true
+            }
+          }
+          EOF
+
+      - name: Restore
+        shell: bash
+        run: dotnet restore "$PROJECT_PATH"
+
+      - name: Download LoongArch runtime and native libs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p LoongArch-NativeLibs LoongArch-Runtime
+
+          curl --fail --location --retry 5 --retry-delay 2 \
+            "$CLASSISLAND_LOONGARCH_BASE/LoongArch-NativeLibs/libSkiaSharp.so" \
+            --output LoongArch-NativeLibs/libSkiaSharp.so
+
+          curl --fail --location --retry 5 --retry-delay 2 \
+            "$CLASSISLAND_LOONGARCH_BASE/LoongArch-NativeLibs/libHarfBuzzSharp.so" \
+            --output LoongArch-NativeLibs/libHarfBuzzSharp.so
+
+          curl --fail --location --retry 5 --retry-delay 2 \
+            "$LOONGNIX_DOTNET_BASE/$LOONGARCH_DOTNET_RUNTIME_ARCHIVE" \
+            --output "LoongArch-Runtime/$LOONGARCH_DOTNET_RUNTIME_ARCHIVE"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            "$LOONGNIX_DOTNET_BASE/$LOONGARCH_DOTNET_RUNTIME_ARCHIVE.md5" \
+            --output "LoongArch-Runtime/$LOONGARCH_DOTNET_RUNTIME_ARCHIVE.md5"
+
+          curl --fail --location --retry 5 --retry-delay 2 \
+            "$LOONGNIX_DOTNET_BASE/$LOONGARCH_ASPNETCORE_RUNTIME_ARCHIVE" \
+            --output "LoongArch-Runtime/$LOONGARCH_ASPNETCORE_RUNTIME_ARCHIVE"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            "$LOONGNIX_DOTNET_BASE/$LOONGARCH_ASPNETCORE_RUNTIME_ARCHIVE.md5" \
+            --output "LoongArch-Runtime/$LOONGARCH_ASPNETCORE_RUNTIME_ARCHIVE.md5"
+
+          test -s LoongArch-NativeLibs/libSkiaSharp.so
+          test -s LoongArch-NativeLibs/libHarfBuzzSharp.so
+          test -s "LoongArch-Runtime/$LOONGARCH_DOTNET_RUNTIME_ARCHIVE"
+          test -s "LoongArch-Runtime/$LOONGARCH_ASPNETCORE_RUNTIME_ARCHIVE"
+          (cd LoongArch-Runtime && md5sum -c "$LOONGARCH_DOTNET_RUNTIME_ARCHIVE.md5")
+          (cd LoongArch-Runtime && md5sum -c "$LOONGARCH_ASPNETCORE_RUNTIME_ARCHIVE.md5")
+
+      - name: Publish linux-loongarch64
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dotnet publish "$PROJECT_PATH" \
+            -c Release \
+            --no-self-contained \
+            -p:PublishDir=output/linux-loongarch64/$APP_NAME \
+            -p:PublishBuilding=true \
+            -p:PublishPlatform=linux \
+            -p:Platforms_Linux=true \
+            -p:TrimAssets=false \
+            -p:UseAppHost=false \
+            -p:PublishSingleFile=false \
+            -p:PublishTrimmed=false \
+            -p:DebugType=none \
+            -p:DebugSymbols=false
+
+      - name: Inject LoongArch native libs and runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_dir="output/linux-loongarch64/$APP_NAME"
+          mkdir -p "$app_dir/runtimes/linux-loongarch64/native/"
+
+          install -m 755 LoongArch-NativeLibs/libSkiaSharp.so \
+            "$app_dir/runtimes/linux-loongarch64/native/libSkiaSharp.so"
+          install -m 755 LoongArch-NativeLibs/libHarfBuzzSharp.so \
+            "$app_dir/runtimes/linux-loongarch64/native/libHarfBuzzSharp.so"
+
+          tar -xf "LoongArch-Runtime/$LOONGARCH_DOTNET_RUNTIME_ARCHIVE" -C "$app_dir/"
+          tar -xf "LoongArch-Runtime/$LOONGARCH_ASPNETCORE_RUNTIME_ARCHIVE" -C "$app_dir/"
+          chmod +x "$app_dir/dotnet"
+
+      - name: Verify linux-loongarch64 package contents
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_dir="output/linux-loongarch64/$APP_NAME"
+          test -f "$app_dir/OpenRemoteShouter.dll"
+          test -x "$app_dir/dotnet"
+          test -d "$app_dir/shared/Microsoft.AspNetCore.App"
+          test -f "$app_dir/runtimes/linux-loongarch64/native/libSkiaSharp.so"
+          test -f "$app_dir/runtimes/linux-loongarch64/native/libHarfBuzzSharp.so"
+
+      - name: Create linux-loongarch64 archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifact_name="${APP_NAME}-linux-loongarch64"
+          package_root="artifacts/$artifact_name"
+
+          mkdir -p "$package_root"
+          cp -a "output/linux-loongarch64/$APP_NAME" "$package_root/"
+
+          cat > "$package_root/run.sh" << 'SCRIPT'
+          #!/usr/bin/env bash
+          set -e
+          script_dir="$(cd "$(dirname "$0")" && pwd)"
+          app_dir="$script_dir/OpenRemoteShouter"
+
+          export DOTNET_CLI_TELEMETRY_OPTOUT=1
+          export DISPLAY="${DISPLAY:-:0}"
+          export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
+          export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}"
+          export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+          export XDG_DATA_DIRS="${XDG_DATA_DIRS:-/usr/share:/usr/local/share}"
+          export DOTNET_ROOT="$app_dir"
+          export PATH="$DOTNET_ROOT:$PATH:/usr/bin:/usr/local/bin"
+          export LD_LIBRARY_PATH="$app_dir/runtimes/linux-loongarch64/native:${LD_LIBRARY_PATH:-}"
+
+          cd "$app_dir"
+          exec ./dotnet OpenRemoteShouter.dll "$@"
+          SCRIPT
+          chmod +x "$package_root/run.sh"
+
+          (cd artifacts && tar -czf "../$artifact_name.tar.gz" "$artifact_name")
+          echo "PACKAGE_PATH=$artifact_name.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Upload linux-loongarch64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenRemoteShouter-linux-loongarch64
+          path: ${{ env.PACKAGE_PATH }}
+
+  package-all-platforms:
+    name: Package all platforms
+    runs-on: ubuntu-latest
+    needs: [ build-portable, build-self-contained, build-loongarch ]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded-artifacts
+
+      - name: Create release bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifact_name="${APP_NAME}-all-platforms"
+          bundle_dir="release-bundle/$artifact_name"
+
+          mkdir -p "$bundle_dir"
+          find downloaded-artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) -print0 \
+            | sort -z \
+            | while IFS= read -r -d '' package; do
+                cp "$package" "$bundle_dir/"
+              done
+
+          package_count="$(find "$bundle_dir" -type f \( -name "*.zip" -o -name "*.tar.gz" \) | wc -l)"
+          if [ "$package_count" -eq 0 ]; then
+            echo "No platform packages were found." >&2
+            exit 1
+          fi
+
+          cat > "$bundle_dir/README.txt" << 'TEXT'
+          OpenRemoteShouter all-platforms release bundle.
+
+          This archive contains one package per target platform plus the portable net8.0 package.
+          Use the self-contained package matching the target machine when possible.
+          The portable net8.0 package requires a locally installed .NET 8 runtime.
+          TEXT
+
+          (cd "$bundle_dir" && sha256sum * > SHA256SUMS.txt)
+          (cd release-bundle && zip -r "../$artifact_name.zip" "$artifact_name")
+          echo "PACKAGE_PATH=$artifact_name.zip" >> "$GITHUB_ENV"
+
+      - name: Upload all-platforms artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenRemoteShouter-all-platforms
+          path: ${{ env.PACKAGE_PATH }}
+
+      - name: Create draft release for tags
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: ${{ env.PACKAGE_PATH }}
