@@ -187,7 +187,7 @@ jobs:
           path: ${{ env.PACKAGE_PATH }}
 
   build-loongarch:
-    name: Build linux-loongarch64
+    name: Build linux-loongarch64 Old World ABI 1.0
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -201,7 +201,7 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Patch global.json for LoongArch build
+      - name: Patch global.json for LoongArch Old World ABI 1.0 build
         shell: bash
         run: |
           set -euo pipefail
@@ -220,7 +220,7 @@ jobs:
         shell: bash
         run: dotnet restore "$PROJECT_PATH"
 
-      - name: Download LoongArch runtime and native libs
+      - name: Download LoongArch Old World ABI 1.0 runtime and native libs
         shell: bash
         run: |
           set -euo pipefail
@@ -256,7 +256,7 @@ jobs:
           (cd LoongArch-Runtime && md5sum -c "$LOONGARCH_DOTNET_RUNTIME_ARCHIVE.md5")
           (cd LoongArch-Runtime && md5sum -c "$LOONGARCH_ASPNETCORE_RUNTIME_ARCHIVE.md5")
 
-      - name: Publish linux-loongarch64
+      - name: Publish linux-loongarch64 Old World ABI 1.0
         shell: bash
         run: |
           set -euo pipefail
@@ -292,7 +292,7 @@ jobs:
           tar -xf "LoongArch-Runtime/$LOONGARCH_ASPNETCORE_RUNTIME_ARCHIVE" -C "$app_dir/"
           chmod +x "$app_dir/dotnet"
 
-      - name: Verify linux-loongarch64 package contents
+      - name: Verify linux-loongarch64 Old World ABI 1.0 package contents
         shell: bash
         run: |
           set -euo pipefail
@@ -304,12 +304,12 @@ jobs:
           test -f "$app_dir/runtimes/linux-loongarch64/native/libSkiaSharp.so"
           test -f "$app_dir/runtimes/linux-loongarch64/native/libHarfBuzzSharp.so"
 
-      - name: Create linux-loongarch64 archive
+      - name: Create linux-loongarch64 Old World ABI 1.0 archive
         shell: bash
         run: |
           set -euo pipefail
 
-          artifact_name="${APP_NAME}-linux-loongarch64"
+          artifact_name="${APP_NAME}-linux-loongarch64-oldworld-abi1.0"
           package_root="artifacts/$artifact_name"
 
           mkdir -p "$package_root"
@@ -339,10 +339,10 @@ jobs:
           (cd artifacts && tar -czf "../$artifact_name.tar.gz" "$artifact_name")
           echo "PACKAGE_PATH=$artifact_name.tar.gz" >> "$GITHUB_ENV"
 
-      - name: Upload linux-loongarch64 artifact
+      - name: Upload linux-loongarch64 Old World ABI 1.0 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OpenRemoteShouter-linux-loongarch64
+          name: OpenRemoteShouter-linux-loongarch64-oldworld-abi1.0
           path: ${{ env.PACKAGE_PATH }}
 
   package-all-platforms:
@@ -385,6 +385,7 @@ jobs:
           This archive contains one package per target platform plus the portable net8.0 package.
           Use the self-contained package matching the target machine when possible.
           The portable net8.0 package requires a locally installed .NET 8 runtime.
+          OpenRemoteShouter-linux-loongarch64-oldworld-abi1.0.tar.gz is for LoongArch Old World ABI 1.0 systems.
           TEXT
 
           (cd "$bundle_dir" && sha256sum * > SHA256SUMS.txt)
