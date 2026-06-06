@@ -13,10 +13,10 @@ public sealed class EdgeTtsClient
 {
     public const string Mp3OutputFormat = "audio-24khz-48kbitrate-mono-mp3";
     public const string WavOutputFormat = "riff-24khz-16bit-mono-pcm";
+    private const string OutputFormatEnvironmentVariable = "OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT";
 
-    public static string CurrentOutputFormat => OperatingSystem.IsWindows()
-        ? Mp3OutputFormat
-        : WavOutputFormat;
+    public static string CurrentOutputFormat => NormalizeOutputFormat(
+        Environment.GetEnvironmentVariable(OutputFormatEnvironmentVariable));
 
     private const string ChromiumVersion = "143.0.3650.75";
     private const string ChromiumMajorVersion = "143";
@@ -54,7 +54,7 @@ public sealed class EdgeTtsClient
             ?? AvailableVoices[0];
 
         AppLogService.Info(
-            $"EdgeTTS synthesis requested. voice={voice.ShortName}, outputFormat={outputFormat}, rate={rate}, volume={volume.ToString("0.00", CultureInfo.InvariantCulture)}, textLength={text.Length}");
+            $"EdgeTTS synthesis requested. voice={voice.ShortName}, outputFormat={outputFormat}, rate={rate}, volume={volume.ToString("0.00", CultureInfo.InvariantCulture)}, textLength={text.Length}, utc={DateTimeOffset.UtcNow:O}");
 
         var requestId = Guid.NewGuid().ToString("N");
         using var ws = new ClientWebSocket();
@@ -67,8 +67,9 @@ public sealed class EdgeTtsClient
             $"&Sec-MS-GEC={GenerateSecMsGecToken()}" +
             $"&Sec-MS-GEC-Version=1-{ChromiumVersion}");
 
-        AppLogService.Info("EdgeTTS connecting.");
+        AppLogService.Info($"EdgeTTS connecting. requestId={requestId}");
         await ws.ConnectAsync(uri, cancellationToken);
+        AppLogService.Info($"EdgeTTS connected. state={ws.State}");
         await SendTextAsync(ws, BuildAudioConfig(outputFormat), cancellationToken);
         await SendTextAsync(ws, BuildSsmlMessage(requestId, voice, rate, volume, text), cancellationToken);
 
@@ -122,6 +123,8 @@ public sealed class EdgeTtsClient
         var audio = new List<byte>();
         var receiveBuffer = new byte[32 * 1024];
         var messageBuffer = new List<byte>();
+        var textMessages = new List<string>();
+        var binaryMessages = 0;
 
         while (ws.State is WebSocketState.Open or WebSocketState.Connecting)
         {
@@ -135,6 +138,8 @@ public sealed class EdgeTtsClient
 
             if (result.MessageType == WebSocketMessageType.Close)
             {
+                AppLogService.Info(
+                    $"EdgeTTS close message received. status={ws.CloseStatus}, description={ws.CloseStatusDescription}");
                 break;
             }
 
@@ -150,6 +155,13 @@ public sealed class EdgeTtsClient
             if (result.MessageType == WebSocketMessageType.Text)
             {
                 var text = Encoding.UTF8.GetString(message);
+                var logText = TrimForLog(text);
+                AppLogService.Info($"EdgeTTS text message. {logText}");
+                if (textMessages.Count < 5)
+                {
+                    textMessages.Add(logText);
+                }
+
                 if (text.Contains("Path:turn.end", StringComparison.OrdinalIgnoreCase))
                 {
                     break;
@@ -157,34 +169,41 @@ public sealed class EdgeTtsClient
             }
             else if (result.MessageType == WebSocketMessageType.Binary)
             {
-                AppendAudioPayload(message, audio);
+                binaryMessages++;
+                var appendedBytes = AppendAudioPayload(message, audio);
+                AppLogService.Info(
+                    $"EdgeTTS binary message. messageBytes={message.Length}, appendedAudioBytes={appendedBytes}, totalAudioBytes={audio.Count}");
             }
         }
 
         if (audio.Count == 0)
         {
-            throw new InvalidOperationException("EdgeTTS 未返回音频数据。");
+            throw new InvalidOperationException(
+                "EdgeTTS returned no audio data. "
+                + $"state={ws.State}, closeStatus={ws.CloseStatus}, binaryMessages={binaryMessages}, textMessages={string.Join(" | ", textMessages)}");
         }
 
         return audio.ToArray();
     }
 
-    private static void AppendAudioPayload(byte[] message, List<byte> audio)
+    private static int AppendAudioPayload(byte[] message, List<byte> audio)
     {
         var span = new ReadOnlySpan<byte>(message);
         if (span.Length < 2)
         {
-            return;
+            return 0;
         }
 
         var headerLength = BinaryPrimitives.ReadUInt16BigEndian(span[..2]);
         var payloadStart = 2 + headerLength;
         if (span.Length <= payloadStart)
         {
-            return;
+            return 0;
         }
 
-        audio.AddRange(span[payloadStart..].ToArray());
+        var payload = span[payloadStart..].ToArray();
+        audio.AddRange(payload);
+        return payload.Length;
     }
 
     private static string BuildAudioConfig(string outputFormat)
@@ -246,5 +265,31 @@ public sealed class EdgeTtsClient
         ticks -= ticks % 3_000_000_000;
         var tokenSource = ticks + TrustedClientToken;
         return Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(tokenSource)));
+    }
+
+    public static string GetAudioFileExtension(string outputFormat)
+    {
+        return outputFormat.Contains("mp3", StringComparison.OrdinalIgnoreCase) ? ".mp3" : ".wav";
+    }
+
+    private static string NormalizeOutputFormat(string? configuredFormat)
+    {
+        if (string.IsNullOrWhiteSpace(configuredFormat))
+        {
+            return Mp3OutputFormat;
+        }
+
+        return configuredFormat.Trim().ToLowerInvariant() switch
+        {
+            "mp3" => Mp3OutputFormat,
+            "wav" or "riff" or "pcm" => WavOutputFormat,
+            var value => value
+        };
+    }
+
+    private static string TrimForLog(string value)
+    {
+        value = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return value.Length <= 500 ? value : value[..500] + "...";
     }
 }

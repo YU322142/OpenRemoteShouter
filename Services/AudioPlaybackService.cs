@@ -35,7 +35,19 @@ public sealed class AudioPlaybackService
         AppLogService.Info(
             $"Audio environment. {FormatEnvironmentValue(PlayerEnvironmentVariable)}, {FormatEnvironmentValue("XDG_RUNTIME_DIR")}, {FormatEnvironmentValue("PULSE_SERVER")}, {FormatEnvironmentValue("PIPEWIRE_RUNTIME_DIR")}, {FormatEnvironmentValue("DBUS_SESSION_BUS_ADDRESS")}");
 
-        var players = FindSystemPlayers().ToArray();
+        var allPlayers = FindSystemPlayers().ToArray();
+        var skippedPlayers = allPlayers
+            .Where(player => !IsPlayerCompatibleWithFile(player, filePath))
+            .ToArray();
+        if (skippedPlayers.Length > 0)
+        {
+            AppLogService.Info(
+                $"Audio backend skipped for file type: {string.Join(", ", skippedPlayers.Select(Path.GetFileName))}.");
+        }
+
+        var players = allPlayers
+            .Where(player => IsPlayerCompatibleWithFile(player, filePath))
+            .ToArray();
         AppLogService.Info(
             players.Length == 0
                 ? "Audio backend candidates: none."
@@ -148,6 +160,18 @@ public sealed class AudioPlaybackService
         }
 
         return FindOnPath(commandOrPath);
+    }
+
+    private static bool IsPlayerCompatibleWithFile(string playerPath, string filePath)
+    {
+        if (!string.Equals(Path.GetExtension(filePath), ".mp3", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var playerName = Path.GetFileNameWithoutExtension(playerPath);
+        return !string.Equals(playerName, "aplay", StringComparison.OrdinalIgnoreCase)
+               && !string.Equals(playerName, "paplay", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task PlayWithExternalPlayerAsync(

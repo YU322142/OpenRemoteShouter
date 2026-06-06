@@ -360,6 +360,7 @@ jobs:
 
           mkdir -p "$script_dir/logs"
           export OPEN_REMOTE_SHOUTER_LOG_FILE="$script_dir/logs/openremoteshouter.log"
+          export OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT=wav
           cd "$app_dir"
 
           if [ "${1:-}" = "--foreground" ]; then

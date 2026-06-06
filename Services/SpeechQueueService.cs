@@ -154,7 +154,7 @@ public sealed class SpeechQueueService
 
     private static string GetSpeechFileExtension()
     {
-        return OperatingSystem.IsWindows() ? ".mp3" : ".wav";
+        return EdgeTtsClient.GetAudioFileExtension(EdgeTtsClient.CurrentOutputFormat);
     }
 
     private static string GetCacheDirectory()
