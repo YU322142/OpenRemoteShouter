@@ -2,6 +2,11 @@
 
 OpenRemoteShouter 是一个局域网远程喊话工具。它在电脑上启动一个本地网页服务，其他设备可以通过浏览器或 HTTP API 发送文字，让目标电脑弹出全屏/窗口提示并使用 EdgeTTS 语音播报。
 
+## 重要提醒
+
+- 本项目主要由 AI 辅助编写，可能存在未发现的问题。请在实际使用前自行测试，重要场景不要直接依赖未验证版本。
+- 除 Windows 和 LoongArch64 Old World ABI 1.0 构建外，其他平台构建目前仅确认能够在 GitHub Actions 中完成打包，尚未经过实机运行测试。
+
 ## 功能
 
 - 局域网网页喊话，默认监听 `21212` 端口。
@@ -134,4 +139,5 @@ dotnet publish RemoteShouter.csproj -c Release -r win-x64 --self-contained true
 - EdgeTTS 需要联网访问微软语音服务。
 - 全屏置顶效果受 Linux 桌面环境和窗口管理器影响。
 - Linux 下语音播放依赖系统播放器。
+- 除 Windows 和 LoongArch64 Old World ABI 1.0 外，其他平台构建尚未实机测试。
 - macOS 首次运行可能需要在系统安全设置中允许该程序运行。
