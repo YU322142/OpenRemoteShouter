@@ -1,0 +1,182 @@
+name: Build OpenRemoteShouter
+
+on:
+  push:
+    branches: [ "master", "main", "dev", "portable" ]
+  workflow_dispatch:
+
+env:
+  APP_NAME: OpenRemoteShouter
+  PROJECT_PATH: RemoteShouter.csproj
+
+jobs:
+  build-portable:
+    name: Build portable net8.0
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish portable package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dotnet publish "$PROJECT_PATH" \
+            -c Release \
+            --no-self-contained \
+            -p:UseAppHost=false \
+            -p:PublishDir=output/portable/$APP_NAME \
+            -p:PublishSingleFile=false \
+            -p:PublishTrimmed=false \
+            -p:DebugType=none \
+            -p:DebugSymbols=false
+
+      - name: Create portable archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifact_name="${APP_NAME}-portable-net8.0"
+          mkdir -p "artifacts/$artifact_name"
+          cp -a "output/portable/$APP_NAME" "artifacts/$artifact_name/"
+
+          cat > "artifacts/$artifact_name/run.sh" << 'SCRIPT'
+          #!/usr/bin/env bash
+          set -e
+          script_dir="$(cd "$(dirname "$0")" && pwd)"
+          cd "$script_dir/OpenRemoteShouter"
+          exec dotnet OpenRemoteShouter.dll "$@"
+          SCRIPT
+          chmod +x "artifacts/$artifact_name/run.sh"
+
+          cat > "artifacts/$artifact_name/run.bat" << 'SCRIPT'
+          @echo off
+          cd /d "%~dp0OpenRemoteShouter"
+          dotnet OpenRemoteShouter.dll %*
+          SCRIPT
+
+          (cd artifacts && zip -r "../$artifact_name.zip" "$artifact_name")
+          echo "PACKAGE_PATH=$artifact_name.zip" >> "$GITHUB_ENV"
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenRemoteShouter-portable-net8.0
+          path: ${{ env.PACKAGE_PATH }}
+
+  build-self-contained:
+    name: Build ${{ matrix.rid }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            package_ext: zip
+          - rid: win-x86
+            package_ext: zip
+          - rid: win-arm64
+            package_ext: zip
+          - rid: linux-x64
+            package_ext: tar.gz
+          - rid: linux-arm64
+            package_ext: tar.gz
+          - rid: linux-arm
+            package_ext: tar.gz
+          - rid: linux-musl-x64
+            package_ext: tar.gz
+          - rid: linux-musl-arm64
+            package_ext: tar.gz
+          - rid: osx-x64
+            package_ext: tar.gz
+          - rid: osx-arm64
+            package_ext: tar.gz
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore ${{ matrix.rid }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet restore "$PROJECT_PATH" \
+            -r "${{ matrix.rid }}" \
+            -p:SelfContained=true
+
+      - name: Publish ${{ matrix.rid }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet publish "$PROJECT_PATH" \
+            -c Release \
+            -r "${{ matrix.rid }}" \
+            --self-contained true \
+            --no-restore \
+            -p:PublishDir="output/${{ matrix.rid }}/$APP_NAME" \
+            -p:PublishSingleFile=false \
+            -p:PublishTrimmed=false \
+            -p:DebugType=none \
+            -p:DebugSymbols=false
+
+      - name: Create package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rid="${{ matrix.rid }}"
+          package_ext="${{ matrix.package_ext }}"
+          artifact_name="${APP_NAME}-${rid}"
+          publish_dir="output/$rid/$APP_NAME"
+          package_root="artifacts/$artifact_name"
+
+          mkdir -p "$package_root"
+          cp -a "$publish_dir" "$package_root/"
+
+          if [[ "$rid" == win-* ]]; then
+            cat > "$package_root/run.bat" << 'SCRIPT'
+          @echo off
+          cd /d "%~dp0OpenRemoteShouter"
+          OpenRemoteShouter.exe %*
+          SCRIPT
+          else
+            chmod +x "$package_root/$APP_NAME/$APP_NAME" 2>/dev/null || true
+            cat > "$package_root/run.sh" << 'SCRIPT'
+          #!/usr/bin/env bash
+          set -e
+          script_dir="$(cd "$(dirname "$0")" && pwd)"
+          cd "$script_dir/OpenRemoteShouter"
+          exec ./OpenRemoteShouter "$@"
+          SCRIPT
+            chmod +x "$package_root/run.sh"
+          fi
+
+          if [[ "$package_ext" == "zip" ]]; then
+            (cd artifacts && zip -r "../$artifact_name.zip" "$artifact_name")
+            echo "PACKAGE_PATH=$artifact_name.zip" >> "$GITHUB_ENV"
+          else
+            (cd artifacts && tar -czf "../$artifact_name.tar.gz" "$artifact_name")
+            echo "PACKAGE_PATH=$artifact_name.tar.gz" >> "$GITHUB_ENV"
+          fi
+
+      - name: Upload ${{ matrix.rid }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenRemoteShouter-${{ matrix.rid }}
+          path: ${{ env.PACKAGE_PATH }}
