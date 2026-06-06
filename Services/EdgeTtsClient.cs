@@ -11,27 +11,34 @@ namespace RemoteShouter.Services;
 
 public sealed class EdgeTtsClient
 {
+    public const string Mp3OutputFormat = "audio-24khz-48kbitrate-mono-mp3";
+    public const string WavOutputFormat = "riff-24khz-16bit-mono-pcm";
+
+    public static string CurrentOutputFormat => OperatingSystem.IsWindows()
+        ? Mp3OutputFormat
+        : WavOutputFormat;
+
     private const string ChromiumVersion = "143.0.3650.75";
     private const string ChromiumMajorVersion = "143";
     private const string TrustedClientToken = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
 
-    public static IReadOnlyList<EdgeTtsVoice> AvailableVoices { get; } =
+    public static IReadOnlyList<EdgeTtsVoice> AvailableVoices =>
     [
         new(
             "Microsoft Server Speech Text to Speech Voice (zh-CN, XiaoxiaoNeural)",
             "zh-CN-XiaoxiaoNeural",
             "zh-CN",
-            "riff-24khz-16bit-mono-pcm"),
+            CurrentOutputFormat),
         new(
             "Microsoft Server Speech Text to Speech Voice (zh-CN, XiaoyiNeural)",
             "zh-CN-XiaoyiNeural",
             "zh-CN",
-            "riff-24khz-16bit-mono-pcm"),
+            CurrentOutputFormat),
         new(
             "Microsoft Server Speech Text to Speech Voice (zh-CN, YunxiNeural)",
             "zh-CN-YunxiNeural",
             "zh-CN",
-            "riff-24khz-16bit-mono-pcm")
+            CurrentOutputFormat)
     ];
 
     public async Task<byte[]> SynthesizeAsync(

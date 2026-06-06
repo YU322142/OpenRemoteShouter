@@ -19,6 +19,12 @@ public sealed class AudioPlaybackService
 
     public async Task PlayAsync(string filePath, float volume, CancellationToken cancellationToken)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            await PlayWithNAudioAsync(filePath, volume, cancellationToken);
+            return;
+        }
+
         var player = FindSystemPlayer();
         if (player is not null)
         {
@@ -26,14 +32,8 @@ public sealed class AudioPlaybackService
             return;
         }
 
-        if (OperatingSystem.IsWindows())
-        {
-            await PlayWithNAudioAsync(filePath, volume, cancellationToken);
-            return;
-        }
-
         throw new PlatformNotSupportedException(
-            "No audio player was found. On Linux, install ffmpeg(ffplay), mpv, or mpg123.");
+            "No audio player was found. On Linux, install pulseaudio-utils(paplay), alsa-utils(aplay), ffmpeg(ffplay), or mpv.");
     }
 
     public static string? FindSystemPlayer()
@@ -45,15 +45,18 @@ public sealed class AudioPlaybackService
 
     public static string GetPlaybackBackendDescription()
     {
+        if (OperatingSystem.IsWindows())
+        {
+            return "Windows NAudio playback";
+        }
+
         var externalPlayer = FindSystemPlayer();
         if (externalPlayer is not null)
         {
             return externalPlayer;
         }
 
-        return OperatingSystem.IsWindows()
-            ? "Windows NAudio playback"
-            : "No player found. Install pulseaudio-utils(paplay), alsa-utils(aplay), ffmpeg(ffplay), or mpv.";
+        return "No player found. Install pulseaudio-utils(paplay), alsa-utils(aplay), ffmpeg(ffplay), or mpv.";
     }
 
     private static string? FindOnPath(string command)
