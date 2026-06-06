@@ -31,6 +31,7 @@ public sealed class ShoutServer
         _port,
         BuildDisplayUrls(),
         AudioPlaybackService.GetPlaybackBackendDescription(),
+        AppLogService.LogFilePath,
         _displayService.SpeechError,
         _lastError);
 
@@ -43,6 +44,7 @@ public sealed class ShoutServer
 
         try
         {
+            AppLogService.Info($"Starting shout server. port={_port}");
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
                 Args = [],
@@ -66,10 +68,12 @@ public sealed class ShoutServer
             await app.StartAsync();
             _app = app;
             _lastError = null;
+            AppLogService.Info($"Shout server started. urls={string.Join(", ", BuildDisplayUrls())}");
         }
         catch (Exception ex)
         {
             _lastError = ex.Message;
+            AppLogService.Error("Failed to start shout server", ex);
             throw;
         }
     }
@@ -83,8 +87,10 @@ public sealed class ShoutServer
 
         var app = _app;
         _app = null;
+        AppLogService.Info("Stopping shout server.");
         await app.StopAsync();
         await app.DisposeAsync();
+        AppLogService.Info("Shout server stopped.");
     }
 
     private void MapRoutes(WebApplication app)

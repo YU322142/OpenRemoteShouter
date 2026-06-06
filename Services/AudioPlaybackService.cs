@@ -19,28 +19,58 @@ public sealed class AudioPlaybackService
 
     public async Task PlayAsync(string filePath, float volume, CancellationToken cancellationToken)
     {
+        var audioFile = new FileInfo(filePath);
+        AppLogService.Info(
+            $"Audio playback requested. file={filePath}, exists={audioFile.Exists}, bytes={(audioFile.Exists ? audioFile.Length : 0)}, volume={volume.ToString("0.00", CultureInfo.InvariantCulture)}");
+
         if (OperatingSystem.IsWindows())
         {
+            AppLogService.Info("Audio backend selected: Windows NAudio playback.");
             await PlayWithNAudioAsync(filePath, volume, cancellationToken);
             return;
         }
 
-        var player = FindSystemPlayer();
-        if (player is not null)
+        var players = FindSystemPlayers().ToArray();
+        AppLogService.Info(
+            players.Length == 0
+                ? "Audio backend candidates: none."
+                : $"Audio backend candidates: {string.Join(", ", players.Select(Path.GetFileName))}.");
+
+        if (players.Length == 0)
         {
-            await PlayWithExternalPlayerAsync(player, filePath, volume, cancellationToken);
-            return;
+            throw new PlatformNotSupportedException(
+                "No audio player was found. On Linux, install pulseaudio-utils(paplay), alsa-utils(aplay), ffmpeg(ffplay), or mpv.");
         }
 
-        throw new PlatformNotSupportedException(
-            "No audio player was found. On Linux, install pulseaudio-utils(paplay), alsa-utils(aplay), ffmpeg(ffplay), or mpv.");
+        var failures = new List<string>();
+        foreach (var player in players)
+        {
+            try
+            {
+                AppLogService.Info($"Trying audio player: {player}");
+                await PlayWithExternalPlayerAsync(player, filePath, volume, cancellationToken);
+                AppLogService.Info($"Audio player succeeded: {player}");
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                AppLogService.Info($"Audio player canceled: {player}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                AppLogService.Error($"Audio player failed: {player}", ex);
+                failures.Add($"{Path.GetFileName(player)}: {ex.Message}");
+            }
+        }
+
+        throw new InvalidOperationException(
+            "All available audio players failed. " + string.Join(" | ", failures));
     }
 
     public static string? FindSystemPlayer()
     {
-        return PlayerCandidates
-            .Select(FindOnPath)
-            .FirstOrDefault(path => path is not null);
+        return FindSystemPlayers().FirstOrDefault();
     }
 
     public static string GetPlaybackBackendDescription()
@@ -50,10 +80,14 @@ public sealed class AudioPlaybackService
             return "Windows NAudio playback";
         }
 
-        var externalPlayer = FindSystemPlayer();
-        if (externalPlayer is not null)
+        var players = FindSystemPlayers()
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToArray();
+
+        if (players.Length > 0)
         {
-            return externalPlayer;
+            return $"External players: {string.Join(", ", players)}";
         }
 
         return "No player found. Install pulseaudio-utils(paplay), alsa-utils(aplay), ffmpeg(ffplay), or mpv.";
@@ -87,6 +121,14 @@ public sealed class AudioPlaybackService
         return null;
     }
 
+    private static IEnumerable<string> FindSystemPlayers()
+    {
+        return PlayerCandidates
+            .Select(FindOnPath)
+            .Where(path => path is not null)
+            .Distinct(StringComparer.OrdinalIgnoreCase)!;
+    }
+
     private static async Task PlayWithExternalPlayerAsync(
         string playerPath,
         string filePath,
@@ -116,6 +158,8 @@ public sealed class AudioPlaybackService
             await process.WaitForExitAsync(cancellationToken);
             var stdout = await stdoutTask;
             var stderr = await stderrTask;
+            AppLogService.Info(
+                $"Audio player exited. player={playerPath}, exitCode={process.ExitCode}, stdout={TrimForLog(stdout)}, stderr={TrimForLog(stderr)}");
             if (process.ExitCode != 0)
             {
                 var details = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
@@ -233,5 +277,11 @@ public sealed class AudioPlaybackService
         {
             // Process may already be gone.
         }
+    }
+
+    private static string TrimForLog(string value)
+    {
+        value = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return value.Length <= 500 ? value : value[..500] + "...";
     }
 }

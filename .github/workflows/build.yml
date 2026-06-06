@@ -58,15 +58,25 @@ jobs:
           #!/usr/bin/env bash
           set -e
           script_dir="$(cd "$(dirname "$0")" && pwd)"
-          cd "$script_dir/OpenRemoteShouter"
-          exec dotnet OpenRemoteShouter.dll "$@"
+          app_dir="$script_dir/OpenRemoteShouter"
+          mkdir -p "$script_dir/logs"
+
+          if [ "${1:-}" = "--foreground" ]; then
+            shift
+            cd "$app_dir"
+            exec dotnet OpenRemoteShouter.dll "$@"
+          fi
+
+          cd "$app_dir"
+          nohup dotnet OpenRemoteShouter.dll "$@" > "$script_dir/logs/openremoteshouter.log" 2>&1 &
           SCRIPT
           chmod +x "artifacts/$artifact_name/run.sh"
 
           cat > "artifacts/$artifact_name/run.bat" << 'SCRIPT'
           @echo off
           cd /d "%~dp0OpenRemoteShouter"
-          dotnet OpenRemoteShouter.dll %*
+          start "" dotnet OpenRemoteShouter.dll %*
+          exit /b
           SCRIPT
 
           (cd artifacts && zip -r "../$artifact_name.zip" "$artifact_name")
@@ -157,8 +167,8 @@ jobs:
           if [[ "$rid" == win-* ]]; then
             cat > "$package_root/run.bat" << 'SCRIPT'
           @echo off
-          cd /d "%~dp0OpenRemoteShouter"
-          OpenRemoteShouter.exe %*
+          start "" "%~dp0OpenRemoteShouter\OpenRemoteShouter.exe" %*
+          exit /b
           SCRIPT
           else
             chmod +x "$package_root/$APP_NAME/$APP_NAME" 2>/dev/null || true
@@ -166,8 +176,17 @@ jobs:
           #!/usr/bin/env bash
           set -e
           script_dir="$(cd "$(dirname "$0")" && pwd)"
-          cd "$script_dir/OpenRemoteShouter"
-          exec ./OpenRemoteShouter "$@"
+          app_dir="$script_dir/OpenRemoteShouter"
+          mkdir -p "$script_dir/logs"
+
+          if [ "${1:-}" = "--foreground" ]; then
+            shift
+            cd "$app_dir"
+            exec ./OpenRemoteShouter "$@"
+          fi
+
+          cd "$app_dir"
+          nohup ./OpenRemoteShouter "$@" > "$script_dir/logs/openremoteshouter.log" 2>&1 &
           SCRIPT
             chmod +x "$package_root/run.sh"
           fi
@@ -331,8 +350,15 @@ jobs:
           export PATH="$DOTNET_ROOT:$PATH:/usr/bin:/usr/local/bin"
           export LD_LIBRARY_PATH="$app_dir/runtimes/linux-loongarch64/native:${LD_LIBRARY_PATH:-}"
 
+          mkdir -p "$script_dir/logs"
           cd "$app_dir"
-          exec ./dotnet OpenRemoteShouter.dll "$@"
+
+          if [ "${1:-}" = "--foreground" ]; then
+            shift
+            exec ./dotnet OpenRemoteShouter.dll "$@"
+          fi
+
+          nohup ./dotnet OpenRemoteShouter.dll "$@" > "$script_dir/logs/openremoteshouter.log" 2>&1 &
           SCRIPT
           chmod +x "$package_root/run.sh"
 

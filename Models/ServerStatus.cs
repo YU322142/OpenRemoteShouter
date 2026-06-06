@@ -5,5 +5,6 @@ public sealed record ServerStatus(
     int Port,
     IReadOnlyList<string> Urls,
     string SpeechBackend,
+    string LogFilePath,
     string? SpeechError,
     string? Error);

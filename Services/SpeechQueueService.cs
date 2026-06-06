@@ -79,16 +79,21 @@ public sealed class SpeechQueueService
             try
             {
                 LastError = null;
+                AppLogService.Info(
+                    $"Speech started. voice={workItem.VoiceName}, format={EdgeTtsClient.CurrentOutputFormat}, rate={workItem.Rate}, volume={workItem.Volume.ToString("0.00", CultureInfo.InvariantCulture)}, length={workItem.Text.Length}");
                 var filePath = await EnsureSpeechCacheAsync(workItem, cts.Token);
                 await _audioPlaybackService.PlayAsync(filePath, workItem.Volume, cts.Token);
+                AppLogService.Info("Speech completed.");
             }
             catch (OperationCanceledException)
             {
+                AppLogService.Info("Speech canceled.");
                 // Expected when a newer shout replaces the current one.
             }
             catch (Exception ex)
             {
                 LastError = ex.Message;
+                AppLogService.Error("Speech failed", ex);
             }
             finally
             {
@@ -112,6 +117,7 @@ public sealed class SpeechQueueService
         var cachePath = GetCachePath(workItem);
         if (File.Exists(cachePath) && new FileInfo(cachePath).Length > 0)
         {
+            AppLogService.Info($"Speech cache hit. path={cachePath}, bytes={new FileInfo(cachePath).Length}");
             return cachePath;
         }
 
@@ -128,6 +134,7 @@ public sealed class SpeechQueueService
             workItem.Volume,
             timeout.Token);
         await File.WriteAllBytesAsync(cachePath, audio, cancellationToken);
+        AppLogService.Info($"Speech cache written. path={cachePath}, bytes={audio.Length}");
         return cachePath;
     }
 

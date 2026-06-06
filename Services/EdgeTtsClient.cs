@@ -53,6 +53,9 @@ public sealed class EdgeTtsClient
             string.Equals(x.ShortName, voiceShortName, StringComparison.OrdinalIgnoreCase))
             ?? AvailableVoices[0];
 
+        AppLogService.Info(
+            $"EdgeTTS synthesis requested. voice={voice.ShortName}, outputFormat={outputFormat}, rate={rate}, volume={volume.ToString("0.00", CultureInfo.InvariantCulture)}, textLength={text.Length}");
+
         var requestId = Guid.NewGuid().ToString("N");
         using var ws = new ClientWebSocket();
         ConfigureWebSocket(ws);
@@ -64,11 +67,14 @@ public sealed class EdgeTtsClient
             $"&Sec-MS-GEC={GenerateSecMsGecToken()}" +
             $"&Sec-MS-GEC-Version=1-{ChromiumVersion}");
 
+        AppLogService.Info("EdgeTTS connecting.");
         await ws.ConnectAsync(uri, cancellationToken);
         await SendTextAsync(ws, BuildAudioConfig(outputFormat), cancellationToken);
         await SendTextAsync(ws, BuildSsmlMessage(requestId, voice, rate, volume, text), cancellationToken);
 
-        return await ReceiveAudioAsync(ws, cancellationToken);
+        var audio = await ReceiveAudioAsync(ws, cancellationToken);
+        AppLogService.Info($"EdgeTTS synthesis completed. bytes={audio.Length}");
+        return audio;
     }
 
     private static void ConfigureWebSocket(ClientWebSocket ws)

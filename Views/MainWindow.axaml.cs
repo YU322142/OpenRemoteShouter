@@ -146,7 +146,7 @@ public partial class MainWindow : Window
         var statusError = status.Error ?? status.SpeechError;
         if (!string.IsNullOrWhiteSpace(statusError))
         {
-            ErrorText.Text = $"\u670d\u52a1\u72b6\u6001\uff1a{statusError}";
+            ErrorText.Text = $"\u670d\u52a1\u72b6\u6001\uff1a{statusError}\nLog: {status.LogFilePath}";
             ErrorText.IsVisible = true;
         }
     }
