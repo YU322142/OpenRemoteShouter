@@ -388,7 +388,27 @@ jobs:
           OpenRemoteShouter-linux-loongarch64-oldworld-abi1.0.tar.gz is for LoongArch Old World ABI 1.0 systems.
           TEXT
 
-          (cd "$bundle_dir" && sha256sum * > SHA256SUMS.txt)
+          package_list="$bundle_dir/PACKAGES.txt"
+          find "$bundle_dir" -maxdepth 1 -type f \( -name "*.zip" -o -name "*.tar.gz" \) -printf "%f\n" \
+            | sort > "$package_list"
+
+          : > "$bundle_dir/SHA256SUMS.txt"
+          {
+            echo "# SHA256 checksums"
+            echo
+            echo "| File | SHA256 |"
+            echo "| --- | --- |"
+          } > "$bundle_dir/SHA256SUMS.md"
+
+          while IFS= read -r package_file; do
+            package_hash="$(sha256sum "$bundle_dir/$package_file" | awk '{print $1}')"
+            printf '%s  %s\n' "$package_hash" "$package_file" >> "$bundle_dir/SHA256SUMS.txt"
+            printf '| `%s` | `%s` |\n' "$package_file" "$package_hash" >> "$bundle_dir/SHA256SUMS.md"
+          done < "$package_list"
+
+          rm "$package_list"
+          cat "$bundle_dir/SHA256SUMS.md" >> "$GITHUB_STEP_SUMMARY"
+
           (cd release-bundle && zip -r "../$artifact_name.zip" "$artifact_name")
           echo "PACKAGE_PATH=$artifact_name.zip" >> "$GITHUB_ENV"
 
@@ -403,4 +423,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           draft: true
+          body_path: release-bundle/${{ env.APP_NAME }}-all-platforms/SHA256SUMS.md
           files: ${{ env.PACKAGE_PATH }}
