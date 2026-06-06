@@ -60,20 +60,24 @@ jobs:
           script_dir="$(cd "$(dirname "$0")" && pwd)"
           app_dir="$script_dir/OpenRemoteShouter"
           mkdir -p "$script_dir/logs"
+          export OPEN_REMOTE_SHOUTER_LOG_FILE="$script_dir/logs/openremoteshouter.log"
 
           if [ "${1:-}" = "--foreground" ]; then
             shift
+            export OPEN_REMOTE_SHOUTER_LOG_CONSOLE=1
             cd "$app_dir"
             exec dotnet OpenRemoteShouter.dll "$@"
           fi
 
           cd "$app_dir"
-          nohup dotnet OpenRemoteShouter.dll "$@" > "$script_dir/logs/openremoteshouter.log" 2>&1 &
+          nohup dotnet OpenRemoteShouter.dll "$@" >> "$OPEN_REMOTE_SHOUTER_LOG_FILE" 2>&1 &
           SCRIPT
           chmod +x "artifacts/$artifact_name/run.sh"
 
           cat > "artifacts/$artifact_name/run.bat" << 'SCRIPT'
           @echo off
+          if not exist "%~dp0logs" mkdir "%~dp0logs"
+          set "OPEN_REMOTE_SHOUTER_LOG_FILE=%~dp0logs\openremoteshouter.log"
           cd /d "%~dp0OpenRemoteShouter"
           start "" dotnet OpenRemoteShouter.dll %*
           exit /b
@@ -167,6 +171,8 @@ jobs:
           if [[ "$rid" == win-* ]]; then
             cat > "$package_root/run.bat" << 'SCRIPT'
           @echo off
+          if not exist "%~dp0logs" mkdir "%~dp0logs"
+          set "OPEN_REMOTE_SHOUTER_LOG_FILE=%~dp0logs\openremoteshouter.log"
           start "" "%~dp0OpenRemoteShouter\OpenRemoteShouter.exe" %*
           exit /b
           SCRIPT
@@ -178,15 +184,17 @@ jobs:
           script_dir="$(cd "$(dirname "$0")" && pwd)"
           app_dir="$script_dir/OpenRemoteShouter"
           mkdir -p "$script_dir/logs"
+          export OPEN_REMOTE_SHOUTER_LOG_FILE="$script_dir/logs/openremoteshouter.log"
 
           if [ "${1:-}" = "--foreground" ]; then
             shift
+            export OPEN_REMOTE_SHOUTER_LOG_CONSOLE=1
             cd "$app_dir"
             exec ./OpenRemoteShouter "$@"
           fi
 
           cd "$app_dir"
-          nohup ./OpenRemoteShouter "$@" > "$script_dir/logs/openremoteshouter.log" 2>&1 &
+          nohup ./OpenRemoteShouter "$@" >> "$OPEN_REMOTE_SHOUTER_LOG_FILE" 2>&1 &
           SCRIPT
             chmod +x "$package_root/run.sh"
           fi
@@ -351,14 +359,16 @@ jobs:
           export LD_LIBRARY_PATH="$app_dir/runtimes/linux-loongarch64/native:${LD_LIBRARY_PATH:-}"
 
           mkdir -p "$script_dir/logs"
+          export OPEN_REMOTE_SHOUTER_LOG_FILE="$script_dir/logs/openremoteshouter.log"
           cd "$app_dir"
 
           if [ "${1:-}" = "--foreground" ]; then
             shift
+            export OPEN_REMOTE_SHOUTER_LOG_CONSOLE=1
             exec ./dotnet OpenRemoteShouter.dll "$@"
           fi
 
-          nohup ./dotnet OpenRemoteShouter.dll "$@" > "$script_dir/logs/openremoteshouter.log" 2>&1 &
+          nohup ./dotnet OpenRemoteShouter.dll "$@" >> "$OPEN_REMOTE_SHOUTER_LOG_FILE" 2>&1 &
           SCRIPT
           chmod +x "$package_root/run.sh"
 

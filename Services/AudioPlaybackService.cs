@@ -6,13 +6,15 @@ namespace RemoteShouter.Services;
 
 public sealed class AudioPlaybackService
 {
+    private const string PlayerEnvironmentVariable = "OPEN_REMOTE_SHOUTER_AUDIO_PLAYER";
+
     private static readonly string[] PlayerCandidates =
     [
-        "paplay",
-        "aplay",
-        "pw-play",
         "ffplay",
         "mpv",
+        "pw-play",
+        "paplay",
+        "aplay",
         "cvlc",
         "vlc"
     ];
@@ -29,6 +31,9 @@ public sealed class AudioPlaybackService
             await PlayWithNAudioAsync(filePath, volume, cancellationToken);
             return;
         }
+
+        AppLogService.Info(
+            $"Audio environment. {FormatEnvironmentValue(PlayerEnvironmentVariable)}, {FormatEnvironmentValue("XDG_RUNTIME_DIR")}, {FormatEnvironmentValue("PULSE_SERVER")}, {FormatEnvironmentValue("PIPEWIRE_RUNTIME_DIR")}, {FormatEnvironmentValue("DBUS_SESSION_BUS_ADDRESS")}");
 
         var players = FindSystemPlayers().ToArray();
         AppLogService.Info(
@@ -123,10 +128,26 @@ public sealed class AudioPlaybackService
 
     private static IEnumerable<string> FindSystemPlayers()
     {
-        return PlayerCandidates
-            .Select(FindOnPath)
+        var configuredPlayer = Environment.GetEnvironmentVariable(PlayerEnvironmentVariable);
+        var candidates = string.IsNullOrWhiteSpace(configuredPlayer)
+            ? PlayerCandidates
+            : [configuredPlayer, .. PlayerCandidates];
+
+        return candidates
+            .Select(ResolvePlayer)
             .Where(path => path is not null)
             .Distinct(StringComparer.OrdinalIgnoreCase)!;
+    }
+
+    private static string? ResolvePlayer(string commandOrPath)
+    {
+        if (commandOrPath.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]) >= 0)
+        {
+            var fullPath = Path.GetFullPath(commandOrPath);
+            return File.Exists(fullPath) ? fullPath : null;
+        }
+
+        return FindOnPath(commandOrPath);
     }
 
     private static async Task PlayWithExternalPlayerAsync(
@@ -146,6 +167,8 @@ public sealed class AudioPlaybackService
         };
 
         AddPlayerArguments(startInfo, playerName, filePath, volume);
+        AppLogService.Info(
+            $"Audio player command. player={playerPath}, args={FormatArguments(startInfo.ArgumentList)}");
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Unable to start audio player: {playerPath}");
@@ -199,14 +222,13 @@ public sealed class AudioPlaybackService
                 startInfo.ArgumentList.Add("-nodisp");
                 startInfo.ArgumentList.Add("-autoexit");
                 startInfo.ArgumentList.Add("-loglevel");
-                startInfo.ArgumentList.Add("quiet");
+                startInfo.ArgumentList.Add("error");
                 startInfo.ArgumentList.Add("-volume");
                 startInfo.ArgumentList.Add(percentVolume.ToString(CultureInfo.InvariantCulture));
                 startInfo.ArgumentList.Add(filePath);
                 break;
             case "mpv":
                 startInfo.ArgumentList.Add("--no-video");
-                startInfo.ArgumentList.Add("--really-quiet");
                 startInfo.ArgumentList.Add($"--volume={percentVolume.ToString(CultureInfo.InvariantCulture)}");
                 startInfo.ArgumentList.Add(filePath);
                 break;
@@ -215,7 +237,6 @@ public sealed class AudioPlaybackService
                 startInfo.ArgumentList.Add("--intf");
                 startInfo.ArgumentList.Add("dummy");
                 startInfo.ArgumentList.Add("--play-and-exit");
-                startInfo.ArgumentList.Add("--quiet");
                 startInfo.ArgumentList.Add("--gain");
                 startInfo.ArgumentList.Add(volume.ToString("0.00", CultureInfo.InvariantCulture));
                 startInfo.ArgumentList.Add(filePath);
@@ -224,6 +245,24 @@ public sealed class AudioPlaybackService
                 startInfo.ArgumentList.Add(filePath);
                 break;
         }
+    }
+
+    private static string FormatArguments(IEnumerable<string> arguments)
+    {
+        return string.Join(" ", arguments.Select(QuoteArgument));
+    }
+
+    private static string QuoteArgument(string argument)
+    {
+        return argument.Any(char.IsWhiteSpace)
+            ? $"\"{argument.Replace("\"", "\\\"", StringComparison.Ordinal)}\""
+            : argument;
+    }
+
+    private static string FormatEnvironmentValue(string name)
+    {
+        var value = Environment.GetEnvironmentVariable(name);
+        return string.IsNullOrWhiteSpace(value) ? $"{name}=<empty>" : $"{name}={value}";
     }
 
     private static async Task PlayWithNAudioAsync(
