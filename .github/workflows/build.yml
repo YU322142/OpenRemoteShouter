@@ -354,6 +354,11 @@ jobs:
           export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}"
           export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
           export XDG_DATA_DIRS="${XDG_DATA_DIRS:-/usr/share:/usr/local/share}"
+          export OPEN_REMOTE_SHOUTER_SOFTWARE_RENDERING="${OPEN_REMOTE_SHOUTER_SOFTWARE_RENDERING:-1}"
+          export OPEN_REMOTE_SHOUTER_X11_ENABLE_IME="${OPEN_REMOTE_SHOUTER_X11_ENABLE_IME:-auto}"
+          export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
+          export GALLIUM_DRIVER="${GALLIUM_DRIVER:-llvmpipe}"
+          export AVALONIA_RENDERING_FORCE_SOFTWARE="${AVALONIA_RENDERING_FORCE_SOFTWARE:-1}"
           export DOTNET_ROOT="$app_dir"
           export PATH="$DOTNET_ROOT:$PATH:/usr/bin:/usr/local/bin"
           export LD_LIBRARY_PATH="$app_dir/runtimes/linux-loongarch64/native:${LD_LIBRARY_PATH:-}"
@@ -361,6 +366,39 @@ jobs:
           mkdir -p "$script_dir/logs"
           export OPEN_REMOTE_SHOUTER_LOG_FILE="$script_dir/logs/openremoteshouter.log"
           export OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT=wav
+
+          open_remote_shouter_has_fcitx_dbus() {
+            if command -v dbus-send >/dev/null 2>&1; then
+              dbus-send --session --dest=org.freedesktop.DBus --type=method_call --print-reply \
+                /org/freedesktop/DBus org.freedesktop.DBus.ListNames 2>/dev/null | grep -q 'org.fcitx.Fcitx' && return 0
+            fi
+            if command -v busctl >/dev/null 2>&1; then
+              busctl --user --no-pager --no-legend list 2>/dev/null | grep -q 'org.fcitx.Fcitx' && return 0
+            fi
+            return 1
+          }
+
+          open_remote_shouter_disable_ime() {
+            export XMODIFIERS="@im=none"
+            export GTK_IM_MODULE="xim"
+            export QT_IM_MODULE="xim"
+          }
+
+          open_remote_shouter_ime_switch="$(printf '%s' "$OPEN_REMOTE_SHOUTER_X11_ENABLE_IME" | tr '[:upper:]' '[:lower:]')"
+          case "$open_remote_shouter_ime_switch" in
+            0|false|no|off|disable|disabled)
+              open_remote_shouter_disable_ime
+              ;;
+            auto|"")
+              if ! open_remote_shouter_has_fcitx_dbus; then
+                export OPEN_REMOTE_SHOUTER_X11_ENABLE_IME=0
+                open_remote_shouter_disable_ime
+              else
+                export OPEN_REMOTE_SHOUTER_X11_ENABLE_IME=1
+              fi
+              ;;
+          esac
+
           cd "$app_dir"
 
           if [ "${1:-}" = "--foreground" ]; then

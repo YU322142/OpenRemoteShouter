@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -16,6 +17,7 @@ namespace RemoteShouter.Services;
 public sealed class ShoutServer
 {
     private readonly ShoutDisplayService _displayService;
+    private readonly AccountService _accountService = new();
     private readonly int _port;
     private WebApplication? _app;
     private string? _lastError;
@@ -63,6 +65,13 @@ public sealed class ShoutServer
             });
 
             var app = builder.Build();
+            app.Use(async (context, next) =>
+            {
+                var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
+                context.Items["CspNonce"] = nonce;
+                ApplySecurityHeaders(context, nonce);
+                await next();
+            });
             MapRoutes(app);
 
             await app.StartAsync();
@@ -95,14 +104,100 @@ public sealed class ShoutServer
 
     private void MapRoutes(WebApplication app)
     {
-        app.MapGet("/", () => Results.Content(BuildIndexHtml(), "text/html; charset=utf-8"));
+        app.MapGet("/", (HttpContext context) =>
+        {
+            var nonce = context.Items["CspNonce"] as string ?? string.Empty;
+            return Results.Content(WebUiHtml.Build(nonce), "text/html; charset=utf-8");
+        });
 
-        app.MapGet("/api/status", () => Results.Json(Status));
+        app.MapGet("/api/auth/state", (HttpContext context) =>
+            Results.Json(new { ok = true, state = _accountService.GetAuthState(context.Request) }));
 
-        app.MapGet("/api/voices", () => Results.Json(EdgeTtsClient.AvailableVoices));
+        app.MapPost("/api/auth/setup", async (HttpContext context) =>
+        {
+            if (!IsLocalRequest(context))
+            {
+                return ApiError(
+                    "Initial admin setup must be completed from this computer.",
+                    StatusCodes.Status403Forbidden);
+            }
+
+            var request = await context.Request.ReadFromJsonAsync<SetupAdminRequest>() ?? new SetupAdminRequest(null, null, null);
+            var result = _accountService.SetupAdmin(request, GetRemoteKey(context));
+            if (!result.Ok || result.Session is null)
+            {
+                return ApiError(result.Error ?? "Setup failed.", result.StatusCode);
+            }
+
+            _accountService.SetSessionCookie(context.Response, context.Request, result.Session);
+            return Results.Json(new { ok = true, state = new AuthState(false, result.Session.User, result.Session.CsrfToken) });
+        });
+
+        app.MapPost("/api/auth/login", async (HttpContext context) =>
+        {
+            var request = await context.Request.ReadFromJsonAsync<LoginRequest>() ?? new LoginRequest(null, null);
+            var result = _accountService.Login(request, GetRemoteKey(context));
+            if (!result.Ok || result.Session is null)
+            {
+                return ApiError(result.Error ?? "Login failed.", result.StatusCode);
+            }
+
+            _accountService.SetSessionCookie(context.Response, context.Request, result.Session);
+            return Results.Json(new { ok = true, state = new AuthState(false, result.Session.User, result.Session.CsrfToken) });
+        });
+
+        app.MapPost("/api/auth/logout", (HttpContext context) =>
+        {
+            var error = RequireSession(context, out var session, requireCsrf: true);
+            if (error is not null)
+            {
+                return error;
+            }
+
+            _accountService.Logout(session!);
+            _accountService.ClearSessionCookie(context.Response, context.Request);
+            return Results.Json(new { ok = true });
+        });
+
+        app.MapPost("/api/auth/password", async (HttpContext context) =>
+        {
+            var error = RequireSession(context, out var session, requireCsrf: true);
+            if (error is not null)
+            {
+                return error;
+            }
+
+            var request = await context.Request.ReadFromJsonAsync<ChangePasswordRequest>() ?? new ChangePasswordRequest(null, null);
+            var result = _accountService.ChangePassword(session!.User, request);
+            if (!result.Ok)
+            {
+                return ApiError(result.Error ?? "Password change failed.", result.StatusCode);
+            }
+
+            _accountService.ClearSessionCookie(context.Response, context.Request);
+            return Results.Json(new { ok = true });
+        });
+
+        app.MapGet("/api/status", (HttpContext context) =>
+        {
+            var error = RequireSession(context, out _);
+            return error ?? Results.Json(Status);
+        });
+
+        app.MapGet("/api/voices", (HttpContext context) =>
+        {
+            var error = RequireSession(context, out _);
+            return error ?? Results.Json(EdgeTtsClient.AvailableVoices);
+        });
 
         app.MapPost("/api/shout", async (HttpRequest request) =>
         {
+            var error = RequireSession(request.HttpContext, out _, requireCsrf: true);
+            if (error is not null)
+            {
+                return error;
+            }
+
             var shoutRequest = await ReadRequestAsync(request);
             var parsed = shoutRequest.ToMessage();
 
@@ -115,11 +210,133 @@ public sealed class ShoutServer
             return Results.Ok(new { ok = true });
         });
 
-        app.MapPost("/api/close", async () =>
+        app.MapPost("/api/close", async (HttpContext context) =>
         {
+            var error = RequireSession(context, out _, requireCsrf: true);
+            if (error is not null)
+            {
+                return error;
+            }
+
             await _displayService.CloseAsync();
             return Results.Ok(new { ok = true });
         });
+
+        app.MapGet("/api/users", (HttpContext context) =>
+        {
+            var error = RequireSession(context, out _, requireAdmin: true);
+            return error ?? Results.Json(new { ok = true, users = _accountService.ListUsers() });
+        });
+
+        app.MapPost("/api/users", async (HttpContext context) =>
+        {
+            var error = RequireSession(context, out _, requireAdmin: true, requireCsrf: true);
+            if (error is not null)
+            {
+                return error;
+            }
+
+            var request = await context.Request.ReadFromJsonAsync<CreateUserRequest>()
+                          ?? new CreateUserRequest(null, null, null, false);
+            var result = _accountService.CreateUser(request);
+            return result.Ok
+                ? Results.Json(new { ok = true, user = result.User })
+                : ApiError(result.Error ?? "User creation failed.", result.StatusCode);
+        });
+
+        app.MapPut("/api/users/{username}", async (string username, HttpContext context) =>
+        {
+            var error = RequireSession(context, out var session, requireAdmin: true, requireCsrf: true);
+            if (error is not null)
+            {
+                return error;
+            }
+
+            var request = await context.Request.ReadFromJsonAsync<UpdateUserRequest>()
+                          ?? new UpdateUserRequest(null, null, null, null);
+            var result = _accountService.UpdateUser(username, request, session!.User);
+            return result.Ok
+                ? Results.Json(new { ok = true, user = result.User })
+                : ApiError(result.Error ?? "User update failed.", result.StatusCode);
+        });
+
+        app.MapDelete("/api/users/{username}", (string username, HttpContext context) =>
+        {
+            var error = RequireSession(context, out var session, requireAdmin: true, requireCsrf: true);
+            if (error is not null)
+            {
+                return error;
+            }
+
+            var result = _accountService.DeleteUser(username, session!.User);
+            return result.Ok
+                ? Results.Json(new { ok = true })
+                : ApiError(result.Error ?? "User deletion failed.", result.StatusCode);
+        });
+    }
+
+    private IResult? RequireSession(
+        HttpContext context,
+        out AccountSession? session,
+        bool requireAdmin = false,
+        bool requireCsrf = false)
+    {
+        session = _accountService.GetSession(context.Request);
+        if (session is null)
+        {
+            return ApiError("Login required.", StatusCodes.Status401Unauthorized);
+        }
+
+        if (requireCsrf && !_accountService.ValidateCsrf(session, context.Request))
+        {
+            return ApiError("Security token expired. Please sign in again.", StatusCodes.Status403Forbidden);
+        }
+
+        if (requireAdmin && !session.User.IsAdmin)
+        {
+            return ApiError("Admin permission required.", StatusCodes.Status403Forbidden);
+        }
+
+        return null;
+    }
+
+    private static IResult ApiError(string error, int statusCode)
+    {
+        return Results.Json(new { ok = false, error }, statusCode: statusCode);
+    }
+
+    private static string GetRemoteKey(HttpContext context)
+    {
+        return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    }
+
+    private static bool IsLocalRequest(HttpContext context)
+    {
+        var remoteAddress = context.Connection.RemoteIpAddress;
+        if (remoteAddress is null)
+        {
+            return false;
+        }
+
+        return IPAddress.IsLoopback(remoteAddress);
+    }
+
+    private static void ApplySecurityHeaders(HttpContext context, string nonce)
+    {
+        var headers = context.Response.Headers;
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["X-Frame-Options"] = "DENY";
+        headers["Referrer-Policy"] = "no-referrer";
+        headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+        headers["Content-Security-Policy"] =
+            "default-src 'self'; img-src 'self' data:; "
+            + $"style-src 'self' 'nonce-{nonce}'; script-src 'self' 'nonce-{nonce}'; "
+            + "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            headers["Cache-Control"] = "no-store";
+        }
     }
 
     private static async Task<ShoutRequest> ReadRequestAsync(HttpRequest request)

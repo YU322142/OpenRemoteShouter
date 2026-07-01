@@ -3,8 +3,20 @@ namespace RemoteShouter.Services;
 public static class AppLogService
 {
     private static readonly object Lock = new();
+    private const string DataDirectoryEnvironmentVariable = "OPEN_REMOTE_SHOUTER_DATA_DIR";
     private const string LogFileEnvironmentVariable = "OPEN_REMOTE_SHOUTER_LOG_FILE";
     private const string ConsoleLogEnvironmentVariable = "OPEN_REMOTE_SHOUTER_LOG_CONSOLE";
+
+    public static string DataDirectory
+    {
+        get
+        {
+            var configuredPath = Environment.GetEnvironmentVariable(DataDirectoryEnvironmentVariable);
+            return string.IsNullOrWhiteSpace(configuredPath)
+                ? GetDefaultDataDirectory()
+                : Path.GetFullPath(configuredPath);
+        }
+    }
 
     public static string LogFilePath
     {
@@ -16,7 +28,7 @@ public static class AppLogService
                 return Path.GetFullPath(configuredPath);
             }
 
-            return Path.Combine(GetDataDirectory(), "OpenRemoteShouter.log");
+            return Path.Combine(DataDirectory, "OpenRemoteShouter.log");
         }
     }
 
@@ -90,7 +102,7 @@ public static class AppLogService
                || string.Equals(value, "on", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string GetDataDirectory()
+    private static string GetDefaultDataDirectory()
     {
         var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (string.IsNullOrWhiteSpace(localData))
