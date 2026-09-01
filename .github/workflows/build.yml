@@ -542,3 +542,4 @@ jobs:
             release-notes/${{ env.APP_NAME }}-all-platforms/*.zip
             release-notes/${{ env.APP_NAME }}-all-platforms/*.tar.gz
             release-notes/${{ env.APP_NAME }}-all-platforms/SHA256SUMS.txt
+          fail_on_unmatched_files: true
