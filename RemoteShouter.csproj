@@ -15,6 +15,8 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.0" />
     <PackageReference Include="NAudio" Version="2.2.1" />
+    <!-- Avalonia.X11 brings an older vulnerable D-Bus protocol package. -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
   </ItemGroup>
 
   <ItemGroup>

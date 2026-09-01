@@ -286,7 +286,9 @@ public sealed class AudioPlaybackService
     private static string FormatEnvironmentValue(string name)
     {
         var value = Environment.GetEnvironmentVariable(name);
-        return string.IsNullOrWhiteSpace(value) ? $"{name}=<empty>" : $"{name}={value}";
+        return string.IsNullOrWhiteSpace(value)
+            ? $"{name}=<empty>"
+            : $"{name}=<set,length={value.Length}>";
     }
 
     private static async Task PlayWithNAudioAsync(

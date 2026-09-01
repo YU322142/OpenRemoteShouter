@@ -4,6 +4,8 @@ public sealed class ShoutRequest
 {
     public const string DefaultVoiceName = "zh-CN-XiaoyiNeural";
     public const string DefaultTheme = "cyan";
+    public const int MaxTitleLength = 60;
+    public const int MaxMessageLength = 3000;
 
     public string? Title { get; set; }
 
@@ -33,6 +35,16 @@ public sealed class ShoutRequest
             return (false, "\u558a\u8bdd\u5185\u5bb9\u4e0d\u80fd\u4e3a\u7a7a\u3002", null);
         }
 
+        if (body.Length > MaxMessageLength)
+        {
+            return (false, $"\u558a\u8bdd\u5185\u5bb9\u4e0d\u80fd\u8d85\u8fc7 {MaxMessageLength} \u4e2a\u5b57\u7b26\u3002", null);
+        }
+
+        if (float.IsNaN(SpeechVolume) || float.IsInfinity(SpeechVolume))
+        {
+            return (false, "\u97f3\u91cf\u5fc5\u987b\u662f\u6709\u9650\u6570\u5b57\u3002", null);
+        }
+
         var normalizedMode = (Mode ?? "fullscreen").Trim().ToLowerInvariant();
         var mode = normalizedMode switch
         {
@@ -43,6 +55,10 @@ public sealed class ShoutRequest
 
         var duration = Math.Clamp(DurationSeconds, 0, 3600);
         var title = string.IsNullOrWhiteSpace(Title) ? "\u8fdc\u7a0b\u558a\u8bdd" : Title.Trim();
+        if (title.Length > MaxTitleLength)
+        {
+            return (false, $"\u6807\u9898\u4e0d\u80fd\u8d85\u8fc7 {MaxTitleLength} \u4e2a\u5b57\u7b26\u3002", null);
+        }
         var voiceName = string.IsNullOrWhiteSpace(VoiceName) ? DefaultVoiceName : VoiceName.Trim();
         var rate = Math.Clamp(SpeechRate, -100, 100);
         var volume = Math.Clamp(SpeechVolume, 0.0f, 1.0f);

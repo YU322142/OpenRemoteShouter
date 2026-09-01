@@ -5,6 +5,7 @@ using System.Net.WebSockets;
 using System.Security;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using RemoteShouter.Models;
 
 namespace RemoteShouter.Services;
@@ -14,6 +15,8 @@ public sealed class EdgeTtsClient
     public const string Mp3OutputFormat = "audio-24khz-48kbitrate-mono-mp3";
     public const string WavOutputFormat = "riff-24khz-16bit-mono-pcm";
     private const string OutputFormatEnvironmentVariable = "OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT";
+    private const int MaximumWebSocketMessageBytes = 16 * 1024 * 1024;
+    public const int MaximumAudioBytes = 16 * 1024 * 1024;
 
     public static string CurrentOutputFormat => NormalizeOutputFormat(
         Environment.GetEnvironmentVariable(OutputFormatEnvironmentVariable));
@@ -143,6 +146,11 @@ public sealed class EdgeTtsClient
                 break;
             }
 
+            if (result.Count > MaximumWebSocketMessageBytes - messageBuffer.Count)
+            {
+                throw new InvalidDataException("EdgeTTS returned an oversized WebSocket message.");
+            }
+
             messageBuffer.AddRange(receiveBuffer.Take(result.Count));
             if (!result.EndOfMessage)
             {
@@ -202,17 +210,25 @@ public sealed class EdgeTtsClient
         }
 
         var payload = span[payloadStart..].ToArray();
+        if (payload.Length > MaximumAudioBytes - audio.Count)
+        {
+            throw new InvalidDataException("EdgeTTS returned an oversized audio payload.");
+        }
+
         audio.AddRange(payload);
         return payload.Length;
     }
 
     private static string BuildAudioConfig(string outputFormat)
     {
+        // Keep the wire payload valid even if this method is reused with a
+        // future caller-supplied format value.
+        var encodedOutputFormat = JsonSerializer.Serialize(outputFormat);
         return
             "Content-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n" +
-            "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{\"sentenceBoundaryEnabled\":\"false\",\"wordBoundaryEnabled\":\"false\"},\"outputFormat\":\"" +
-            outputFormat +
-            "\"}}}}";
+            "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{\"sentenceBoundaryEnabled\":\"false\",\"wordBoundaryEnabled\":\"false\"},\"outputFormat\":" +
+            encodedOutputFormat +
+            "}}}}";
     }
 
     private static string BuildSsmlMessage(
@@ -283,7 +299,7 @@ public sealed class EdgeTtsClient
         {
             "mp3" => Mp3OutputFormat,
             "wav" or "riff" or "pcm" => WavOutputFormat,
-            var value => value
+            _ => Mp3OutputFormat
         };
     }
 

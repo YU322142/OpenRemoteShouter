@@ -650,8 +650,17 @@ public static class WebUiHtml
       $('currentUserText').textContent = state.user.displayName;
       $('currentRoleText').textContent = state.user.isAdmin ? '管理员' : '普通用户';
       $('tabUsers').classList.toggle('hidden', !state.user.isAdmin);
-      await Promise.all([loadStatus(), loadVoices()]);
-      if (state.user.isAdmin) await loadUsers();
+      try {
+        await Promise.all([loadStatus(), loadVoices()]);
+        if (state.user.isAdmin) await loadUsers();
+      } catch (error) {
+        if (error.status === 401) {
+          forceLogin();
+          return;
+        }
+
+        showNotice($('result'), error.message || '加载失败。', true);
+      }
     }
 
     async function loadStatus() {
@@ -661,7 +670,7 @@ public static class WebUiHtml
         $('serverDot').classList.toggle('ok', status.isRunning);
         $('portText').textContent = status.port;
         $('speechBackendText').textContent = status.speechBackend;
-        $('logPathText').textContent = status.logFilePath;
+        $('logPathText').textContent = status.logFilePath || '仅管理员可见';
         $('urlList').innerHTML = '';
         for (const url of status.urls || []) {
           const li = document.createElement('li');
@@ -768,8 +777,16 @@ public static class WebUiHtml
     });
 
     $('logoutButton').addEventListener('click', async () => {
-      try { await api('/api/auth/logout', { method: 'POST' }); } catch {}
-      forceLogin();
+      try {
+        await api('/api/auth/logout', { method: 'POST' });
+        forceLogin();
+      } catch (error) {
+        if (error.status === 401) {
+          forceLogin();
+        } else {
+          showNotice($('result'), error.message, true);
+        }
+      }
     });
 
     $('refreshButton').addEventListener('click', renderApp);
@@ -863,10 +880,11 @@ public static class WebUiHtml
       try {
         const body = await api('/api/auth/state');
         setAuthState(body.state);
-      } catch {
+      } catch (error) {
         state.setupRequired = false;
         state.user = null;
         renderShell();
+        showNotice($('authMessage'), error.message || '账户服务暂时不可用。', true);
       }
     })();
   </script>

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace RemoteShouter.Models;
 
 public sealed record AccountUser(
@@ -7,7 +9,16 @@ public sealed record AccountUser(
     bool IsEnabled,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? LastLoginAt);
+    DateTimeOffset? LastLoginAt)
+{
+    // Kept out of the public JSON contract. AccountService uses these values
+    // to reject in-flight requests after password reset or account replacement.
+    [JsonIgnore]
+    internal DateTimeOffset? SessionPasswordChangedAt { get; init; }
+
+    [JsonIgnore]
+    internal DateTimeOffset? SessionUserCreatedAt { get; init; }
+}
 
 public sealed record AccountSession(
     string Token,
