@@ -279,9 +279,9 @@ GitHub Actions 的 `Build OpenRemoteShouter` workflow 会构建并上传：
 - `OpenRemoteShouter-osx-x64`
 - `OpenRemoteShouter-osx-arm64`
 - `OpenRemoteShouter-linux-loongarch64-oldworld-abi1.0`
-- `OpenRemoteShouter-all-platforms`
+- `OpenRemoteShouter-all-platforms`（CI 内部汇总包）
 
-`OpenRemoteShouter-all-platforms` 是发布用总包，里面包含所有平台包和校验文件。
+GitHub Release 会将每个平台包作为独立附件列出，文件名对应目标平台；同时提供 `SHA256SUMS.txt`，Release 正文中也会列出相同的 SHA256 校验值。CI 仍会保留 `OpenRemoteShouter-all-platforms` 汇总包用于流水线内部校验，但它不会作为公开 Release 附件发布。
 
 `OpenRemoteShouter-linux-loongarch64-oldworld-abi1.0.tar.gz` 仅用于 LoongArch64 Old World ABI 1.0 系统。
 

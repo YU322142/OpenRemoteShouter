@@ -535,4 +535,10 @@ jobs:
         with:
           draft: true
           body_path: release-notes/${{ env.APP_NAME }}-all-platforms/SHA256SUMS.md
-          files: release-input/${{ env.APP_NAME }}-all-platforms.zip
+          # Publish each platform package as a separate Release asset.  The
+          # aggregate archive remains a CI artifact for internal inspection,
+          # but is intentionally not attached to the public Release.
+          files: |
+            release-notes/${{ env.APP_NAME }}-all-platforms/*.zip
+            release-notes/${{ env.APP_NAME }}-all-platforms/*.tar.gz
+            release-notes/${{ env.APP_NAME }}-all-platforms/SHA256SUMS.txt

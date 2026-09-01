@@ -279,9 +279,9 @@ The GitHub Actions `Build OpenRemoteShouter` workflow builds and uploads:
 - `OpenRemoteShouter-osx-x64`
 - `OpenRemoteShouter-osx-arm64`
 - `OpenRemoteShouter-linux-loongarch64-oldworld-abi1.0`
-- `OpenRemoteShouter-all-platforms`
+- `OpenRemoteShouter-all-platforms` (CI-only aggregate artifact)
 
-`OpenRemoteShouter-all-platforms` is the release bundle containing all platform packages and checksum files.
+GitHub Releases list each platform package as a separate downloadable asset, with the filename identifying the target platform. `SHA256SUMS.txt` is provided as an additional asset, and the same SHA256 values are shown in the release body. CI still keeps `OpenRemoteShouter-all-platforms` as an internal aggregate artifact for pipeline validation, but it is not attached to the public Release.
 
 `OpenRemoteShouter-linux-loongarch64-oldworld-abi1.0.tar.gz` is only intended for LoongArch64 Old World ABI 1.0 systems.
 
