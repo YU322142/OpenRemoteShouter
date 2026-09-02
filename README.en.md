@@ -119,6 +119,58 @@ unset ORS_SETUP_TOKEN
 
 An Nginx/Caddy-style relay should set the external host and scheme explicitly (for example, `Host $host`, `X-Forwarded-Host $host`, `X-Forwarded-Proto $scheme`, and `X-Forwarded-For $remote_addr`) and prevent clients from injecting duplicate values. With FRP, the application usually sees the same-host `frpc` peer as `127.0.0.1`, so that is the address to allowlist; do not assume the public `frps` address is visible to the classroom process. Confirm the actual TCP peer in the deployment logs.
 
+#### FRP relay example
+
+Recommended layout: `frps` on the public relay, `frpc` on the classroom computer, and Nginx/Caddy terminating HTTPS on the public relay. The app listens on `127.0.0.1:21212`, `frpc` maps it to `127.0.0.1:22122` on the relay, and the reverse proxy serves `https://class.example.test`.
+
+Relay `frps.toml`:
+
+```toml
+bindPort = 7000
+auth.method = "token"
+auth.token = "CHANGE_TO_A_LONG_RANDOM_FRP_TOKEN"
+```
+
+Classroom `frpc.toml`:
+
+```toml
+serverAddr = "relay.example.test"
+serverPort = 7000
+auth.method = "token"
+auth.token = "CHANGE_TO_A_LONG_RANDOM_FRP_TOKEN"
+
+[[proxies]]
+name = "open-remote-shouter"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 21212
+remoteIP = "127.0.0.1"
+remotePort = 22122
+```
+
+Public relay Nginx example:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:22122;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-OpenRemoteShouter-Setup-Token $http_x_openremoteshouter_setup_token;
+}
+```
+
+Classroom environment variables:
+
+```bash
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=<actual-frpc-peer-ip-seen-by-the-app>
+export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='at-least-32-random-bytes'
+```
+
+When `frpc` and the app run on the same computer, this is usually `127.0.0.1`; otherwise use the TCP peer shown in the logs. Start the app and request `https://class.example.test/api/auth/state`; once it reports `remoteSetupEnabled: true`, create the first administrator with the setup token. The FRP `auth.token` and the OpenRemoteShouter setup token are separate secrets and must not be reused.
+
 Source-address throttling uses the TCP peer address actually observed by the application. If the relay does not forward the client address correctly, multiple users may share one source bucket. A successful login clears only the source-plus-username bucket, not the source-wide failure counter. If many users share one egress address, use finer-grained limiting at a trusted gateway and avoid exposing the application over plaintext HTTP.
 
 For deployment scripts that should refuse to start without a certificate, also set `OPEN_REMOTE_SHOUTER_REQUIRE_HTTPS=1`.

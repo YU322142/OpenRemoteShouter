@@ -119,6 +119,58 @@ unset ORS_SETUP_TOKEN
 
 Nginx/Caddy 等反代至少要把外部主机名和协议写入这些头（示意：`Host $host`、`X-Forwarded-Host $host`、`X-Forwarded-Proto $scheme`、`X-Forwarded-For $remote_addr`），并确保客户端不能预先注入同名值。若使用 FRP，应用看到的 TCP 对端通常是同机 `frpc` 的 `127.0.0.1`，此时白名单应填写 `127.0.0.1`，而不是想当然填写 `frps` 的公网地址；请以日志/网络实际观察到的对端地址为准。
 
+#### FRP 中转示例
+
+推荐让公网入口上的 `frps` 只转发到班级电脑上的 `frpc`，再由公网入口上的 Nginx/Caddy 负责 HTTPS。班级端应用监听 `127.0.0.1:21212`，`frpc` 映射到服务端 `127.0.0.1:22122`，反代再把 `https://class.example.test` 转到 `http://127.0.0.1:22122`。
+
+服务端 `frps.toml`：
+
+```toml
+bindPort = 7000
+auth.method = "token"
+auth.token = "CHANGE_TO_A_LONG_RANDOM_FRP_TOKEN"
+```
+
+班级端 `frpc.toml`：
+
+```toml
+serverAddr = "relay.example.test"
+serverPort = 7000
+auth.method = "token"
+auth.token = "CHANGE_TO_A_LONG_RANDOM_FRP_TOKEN"
+
+[[proxies]]
+name = "open-remote-shouter"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 21212
+remoteIP = "127.0.0.1"
+remotePort = 22122
+```
+
+公网入口 Nginx 示例：
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:22122;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-OpenRemoteShouter-Setup-Token $http_x_openremoteshouter_setup_token;
+}
+```
+
+班级端环境变量：
+
+```bash
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=<班级端实际看到的frpc对端IP>
+export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='至少32字节的随机值'
+```
+
+若 `frpc` 与应用同机，通常填写 `127.0.0.1`；否则填写日志中实际看到的 TCP 对端地址。启动后访问 `https://class.example.test/api/auth/state`，确认返回 `remoteSetupEnabled: true`，再使用初始化令牌创建管理员。FRP 的 `auth.token` 与 OpenRemoteShouter 初始化令牌是两套不同的密钥，不能混用。
+
 来源地址限流按应用实际看到的 TCP 对端地址计算；若中转节点没有正确传递客户端地址，多个用户可能共用一个来源桶。成功登录只清除该来源+用户名桶，不会清除来源级失败计数；需要多人共享出口时，应在可信网关上做更细粒度的限流，并避免把应用直接暴露在明文 HTTP 上。
 
 在部署脚本中希望证书缺失时直接拒绝启动，可以再设置 `OPEN_REMOTE_SHOUTER_REQUIRE_HTTPS=1`。
