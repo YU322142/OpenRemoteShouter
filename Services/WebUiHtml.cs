@@ -377,6 +377,9 @@ public static class WebUiHtml
     .toggle-block { align-content: end; }
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; }
+      /* Put the high-frequency shout workflow before status/account details on phones. */
+      .layout > section { order: -1; }
+      .layout > aside { order: 1; }
       .grid-3 { grid-template-columns: 1fr; }
       .user-row { grid-template-columns: 1fr; }
       .topbar { align-items: flex-start; flex-direction: column; }
