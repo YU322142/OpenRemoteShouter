@@ -29,7 +29,8 @@ public sealed record AccountSession(
 public sealed record AuthState(
     bool SetupRequired,
     AccountUser? User,
-    string? CsrfToken);
+    string? CsrfToken,
+    bool RemoteSetupEnabled = false);
 
 public sealed record SetupAdminRequest(
     string? Username,

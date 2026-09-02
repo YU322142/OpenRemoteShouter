@@ -3,12 +3,14 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -18,10 +20,23 @@ namespace RemoteShouter.Services;
 
 public sealed class ShoutServer
 {
+    private const string OriginalRemoteIpAddressItemKey = "RemoteShouter.OriginalRemoteIpAddress";
+    private const string ForwardedHeadersPresentItemKey = "RemoteShouter.ForwardedHeadersPresent";
+    private const string TrustedProxyIpsEnvironmentVariable = "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS";
+    private const string AllowTrustedProxySetupEnvironmentVariable = "OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP";
+    private const string TrustedProxySetupTokenEnvironmentVariable = "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN";
+    private const string TrustedProxySetupTokenHeader = "X-OpenRemoteShouter-Setup-Token";
+    private const int MaxTrustedProxyAddresses = 32;
+    private const int MinTrustedProxySetupTokenBytes = 32;
+    private const int MaxTrustedProxySetupTokenBytes = 512;
     private readonly ShoutDisplayService _displayService;
     private readonly AccountService _accountService = new();
     private readonly int _port;
     private readonly X509Certificate2? _httpsCertificate;
+    private readonly IReadOnlyList<IPAddress> _trustedProxyAddresses;
+    private readonly bool _allowTrustedProxySetup;
+    private readonly byte[]? _trustedProxySetupTokenHash;
+    private int _trustedProxySetupConsumed;
     private readonly bool _allowInsecureHttp;
     private WebApplication? _app;
     private string? _lastError;
@@ -31,6 +46,16 @@ public sealed class ShoutServer
         _displayService = displayService;
         _port = port;
         _httpsCertificate = LoadHttpsCertificate();
+        _trustedProxyAddresses = LoadTrustedProxyAddresses();
+        _allowTrustedProxySetup = IsEnvironmentTruthy(
+            Environment.GetEnvironmentVariable(AllowTrustedProxySetupEnvironmentVariable));
+        _trustedProxySetupTokenHash = LoadTrustedProxySetupTokenHash(_allowTrustedProxySetup);
+        if (_allowTrustedProxySetup && _trustedProxyAddresses.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"{AllowTrustedProxySetupEnvironmentVariable}=1 requires "
+                + $"{TrustedProxyIpsEnvironmentVariable} to contain at least one fixed proxy IP.");
+        }
         _allowInsecureHttp = IsEnvironmentTruthy(
             Environment.GetEnvironmentVariable("OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP"));
         if (_httpsCertificate is null
@@ -134,8 +159,38 @@ public sealed class ShoutServer
                 options.SerializerOptions.PropertyNameCaseInsensitive = true;
                 options.SerializerOptions.MaxDepth = 16;
             });
+            if (_trustedProxyAddresses.Count > 0)
+            {
+                builder.Services.Configure<ForwardedHeadersOptions>(options =>
+                {
+                    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                                                | ForwardedHeaders.XForwardedHost
+                                                | ForwardedHeaders.XForwardedProto;
+                    options.KnownNetworks.Clear();
+                    options.KnownProxies.Clear();
+                    foreach (var proxyAddress in _trustedProxyAddresses)
+                    {
+                        options.KnownProxies.Add(proxyAddress);
+                    }
+
+                    options.ForwardLimit = 1;
+                    options.RequireHeaderSymmetry = false;
+                });
+            }
 
             var app = builder.Build();
+            app.Use(async (context, next) =>
+            {
+                context.Items[OriginalRemoteIpAddressItemKey] = context.Connection.RemoteIpAddress;
+                context.Items[ForwardedHeadersPresentItemKey] = HasForwardingHeaders(context.Request);
+                await next();
+            });
+
+            if (_trustedProxyAddresses.Count > 0)
+            {
+                app.UseForwardedHeaders();
+            }
+
             app.Use(async (context, next) =>
             {
                 var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
@@ -203,6 +258,16 @@ public sealed class ShoutServer
                         ? " OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1 explicitly enables LAN HTTP."
                         : " Set OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1 only for a deliberate legacy LAN HTTP deployment."));
             }
+            if (_trustedProxyAddresses.Count > 0)
+            {
+                AppLogService.Info(
+                    $"Trusted proxy forwarding enabled for: {string.Join(", ", _trustedProxyAddresses)}");
+            }
+            if (_allowTrustedProxySetup)
+            {
+                AppLogService.Info(
+                    "Trusted proxy initial administrator setup is enabled; HTTPS and the setup token are required.");
+            }
             AppLogService.Info($"Shout server started. urls={string.Join(", ", BuildDisplayUrls())}");
         }
         catch (Exception ex)
@@ -243,15 +308,30 @@ public sealed class ShoutServer
                 return ApiError("Accounts database could not be loaded.", StatusCodes.Status503ServiceUnavailable);
             }
 
-            return Results.Json(new { ok = true, state = _accountService.GetAuthState(context.Request) });
+            return Results.Json(new { ok = true, state = BuildAuthState(context) });
         });
 
         app.MapPost("/api/auth/setup", async (HttpContext context) =>
         {
-            if (!IsLocalRequest(context))
+            var trustedProxyRequest = IsTrustedProxyPeer(context);
+            if (trustedProxyRequest && !_allowTrustedProxySetup)
             {
                 return ApiError(
-                    "Initial admin setup must be completed from this computer.",
+                    "Trusted relay initial setup is disabled.",
+                    StatusCodes.Status403Forbidden);
+            }
+
+            if (trustedProxyRequest && !context.Request.IsHttps)
+            {
+                return ApiError(
+                    "Trusted relay initial setup requires HTTPS.",
+                    StatusCodes.Status403Forbidden);
+            }
+
+            if (!trustedProxyRequest && !IsLocalRequest(context))
+            {
+                return ApiError(
+                    "Initial admin setup must be completed from this computer or a trusted relay.",
                     StatusCodes.Status403Forbidden);
             }
 
@@ -268,14 +348,31 @@ public sealed class ShoutServer
             }
 
             var request = parsedRequest.Value ?? new SetupAdminRequest(null, null, null);
+            if (trustedProxyRequest && !HasValidTrustedProxySetupToken(context))
+            {
+                return ApiError(
+                    "A valid trusted relay setup token is required.",
+                    StatusCodes.Status403Forbidden);
+            }
+
+            if (trustedProxyRequest && Volatile.Read(ref _trustedProxySetupConsumed) != 0)
+            {
+                return ApiError("Remote administrator setup has already been completed.", StatusCodes.Status409Conflict);
+            }
+
             var result = _accountService.SetupAdmin(request, GetRemoteKey(context));
             if (!result.Ok || result.Session is null)
             {
                 return ApiError(result.Error ?? "Setup failed.", result.StatusCode);
             }
 
+            if (trustedProxyRequest)
+            {
+                Interlocked.Exchange(ref _trustedProxySetupConsumed, 1);
+            }
+
             _accountService.SetSessionCookie(context.Response, context.Request, result.Session);
-            return Results.Json(new { ok = true, state = new AuthState(false, result.Session.User, result.Session.CsrfToken) });
+            return Results.Json(new { ok = true, state = BuildAuthState(context, result.Session) });
         });
 
         app.MapPost("/api/auth/login", async (HttpContext context) =>
@@ -300,7 +397,7 @@ public sealed class ShoutServer
             }
 
             _accountService.SetSessionCookie(context.Response, context.Request, result.Session);
-            return Results.Json(new { ok = true, state = new AuthState(false, result.Session.User, result.Session.CsrfToken) });
+            return Results.Json(new { ok = true, state = BuildAuthState(context, result.Session) });
         });
 
         app.MapPost("/api/auth/logout", (HttpContext context) =>
@@ -591,43 +688,67 @@ public sealed class ShoutServer
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 
-    private static bool IsLocalRequest(HttpContext context)
+    private bool IsTrustedProxyPeer(HttpContext context)
     {
-        var remoteAddress = context.Connection.RemoteIpAddress;
-        if (remoteAddress is null)
+        var originalRemoteAddress = GetOriginalRemoteAddress(context);
+        // The raw TCP peer is the only trustworthy discriminator here. A
+        // same-host relay can rewrite Host and strip forwarding headers, so
+        // never downgrade an allowlisted peer to the local no-token path.
+        return IsTrustedProxyAddress(originalRemoteAddress);
+    }
+
+    private bool HasValidTrustedProxySetupToken(HttpContext context)
+    {
+        if (_trustedProxySetupTokenHash is null)
         {
             return false;
         }
 
-        if (!IPAddress.IsLoopback(remoteAddress))
+        var suppliedToken = context.Request.Headers[TrustedProxySetupTokenHeader].ToString();
+
+        var tokenBytes = Encoding.UTF8.GetBytes(suppliedToken);
+        if (tokenBytes.Length == 0 || tokenBytes.Length > MaxTrustedProxySetupTokenBytes)
+        {
+            return false;
+        }
+
+        var suppliedHash = SHA256.HashData(tokenBytes);
+        return CryptographicOperations.FixedTimeEquals(_trustedProxySetupTokenHash, suppliedHash);
+    }
+
+    private AuthState BuildAuthState(HttpContext context, AccountSession? session = null)
+    {
+        var state = session is null
+            ? _accountService.GetAuthState(context.Request)
+            : new AuthState(false, session.User, session.CsrfToken);
+        return state with
+        {
+            RemoteSetupEnabled = state.SetupRequired
+                                  && _allowTrustedProxySetup
+                                  && IsTrustedProxyPeer(context)
+                                  && context.Request.IsHttps
+        };
+    }
+
+    private static bool IsLocalRequest(HttpContext context)
+    {
+        var remoteAddress = GetOriginalRemoteAddress(context);
+        if (remoteAddress is null || !IPAddress.IsLoopback(remoteAddress))
         {
             return false;
         }
 
         // A browser can reach a loopback listener through a DNS name whose
-        // address is rebound to 127.0.0.1.  In that case Origin and Host can
-        // still match even though the page was supplied by an attacker.  The
-        // unauthenticated first-run setup therefore accepts only an explicit
-        // localhost name or loopback IP literal.
-        var host = context.Request.Host.Host;
-        var isExplicitLoopbackHost = host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-                                     || (IPAddress.TryParse(host, out var hostAddress)
-                                         && IPAddress.IsLoopback(hostAddress));
-        if (!isExplicitLoopbackHost)
-        {
-            return false;
-        }
+        // address is rebound to 127.0.0.1. Accept only an explicit loopback
+        // host for the unauthenticated local setup path.
+        return IsLoopbackHost(context.Request.Host.Host) && !HadForwardingHeaders(context);
+    }
 
-        // Do not treat a loopback reverse proxy as proof that the browser is
-        // local.  Setup must be performed against the app directly; otherwise
-        // an untrusted proxy could forward a remote initialization request.
-        return !context.Request.Headers.ContainsKey("Forwarded")
-               && !context.Request.Headers.ContainsKey("X-Forwarded-For")
-               && !context.Request.Headers.ContainsKey("X-Forwarded-Host")
-               && !context.Request.Headers.ContainsKey("X-Forwarded-Proto")
-               && !context.Request.Headers.ContainsKey("X-Real-IP")
-               && !context.Request.Headers.ContainsKey("X-Original-For")
-               && !context.Request.Headers.ContainsKey("X-Original-Host");
+    private static bool IsLoopbackHost(string host)
+    {
+        return host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+               || (IPAddress.TryParse(host, out var hostAddress)
+                   && IPAddress.IsLoopback(hostAddress));
     }
 
     private static void ApplySecurityHeaders(HttpContext context, string nonce)
@@ -739,6 +860,61 @@ public sealed class ShoutServer
                || value.Equals("1", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool HasForwardingHeaders(HttpRequest request)
+    {
+        return request.Headers.ContainsKey("Forwarded")
+               || request.Headers.ContainsKey("X-Forwarded-For")
+               || request.Headers.ContainsKey("X-Forwarded-Host")
+               || request.Headers.ContainsKey("X-Forwarded-Proto")
+               || request.Headers.ContainsKey("X-Forwarded-Port")
+               || request.Headers.ContainsKey("X-Real-IP")
+               || request.Headers.ContainsKey("X-Original-For")
+               || request.Headers.ContainsKey("X-Original-Host")
+               || request.Headers.ContainsKey("X-Original-Proto");
+    }
+
+    private static bool HadForwardingHeaders(HttpContext context)
+    {
+        return (context.Items.TryGetValue(ForwardedHeadersPresentItemKey, out var stored)
+                && stored is true)
+               || HasForwardingHeaders(context.Request);
+    }
+
+    private static IPAddress? GetOriginalRemoteAddress(HttpContext context)
+    {
+        if (context.Items.TryGetValue(OriginalRemoteIpAddressItemKey, out var stored)
+            && stored is IPAddress originalRemoteAddress)
+        {
+            return originalRemoteAddress;
+        }
+
+        return context.Connection.RemoteIpAddress;
+    }
+
+    private bool IsTrustedProxyAddress(IPAddress? address)
+    {
+        if (address is null)
+        {
+            return false;
+        }
+
+        var normalizedAddress = NormalizeAddress(address);
+        foreach (var trustedProxyAddress in _trustedProxyAddresses)
+        {
+            if (normalizedAddress.Equals(trustedProxyAddress))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IPAddress NormalizeAddress(IPAddress address)
+    {
+        return address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
+    }
+
     private IReadOnlyList<string> BuildDisplayUrls()
     {
         var scheme = _httpsCertificate is null ? "http" : "https";
@@ -799,6 +975,83 @@ public sealed class ShoutServer
                 "Configured HTTPS certificate could not be loaded.",
                 ex);
         }
+    }
+
+    private static IReadOnlyList<IPAddress> LoadTrustedProxyAddresses()
+    {
+        var rawValue = Environment.GetEnvironmentVariable(TrustedProxyIpsEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return Array.Empty<IPAddress>();
+        }
+
+        var addresses = new List<IPAddress>();
+        var tokens = rawValue.Split(
+            [',', ';', ' ', '\t', '\r', '\n'],
+            StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length > MaxTrustedProxyAddresses)
+        {
+            throw new InvalidOperationException(
+                $"{TrustedProxyIpsEnvironmentVariable} may contain at most {MaxTrustedProxyAddresses} addresses.");
+        }
+
+        foreach (var token in tokens)
+        {
+            var addressText = token;
+            if (addressText.Length >= 2
+                && addressText[0] == '['
+                && addressText[^1] == ']')
+            {
+                addressText = addressText[1..^1];
+            }
+
+            if (!IPAddress.TryParse(addressText, out var address))
+            {
+                throw new InvalidOperationException(
+                    $"Invalid trusted proxy IP address '{token}'. Use literal IP addresses in {TrustedProxyIpsEnvironmentVariable}.");
+            }
+
+            address = NormalizeAddress(address);
+            if (address.Equals(IPAddress.Any) || address.Equals(IPAddress.IPv6Any))
+            {
+                throw new InvalidOperationException(
+                    "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS must list concrete IP addresses, not wildcard addresses.");
+            }
+
+            if (!addresses.Any(existing => existing.Equals(address)))
+            {
+                addresses.Add(address);
+            }
+        }
+
+        return addresses;
+    }
+
+    private static byte[]? LoadTrustedProxySetupTokenHash(bool enabled)
+    {
+        var token = Environment.GetEnvironmentVariable(TrustedProxySetupTokenEnvironmentVariable);
+        if (!enabled)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            throw new InvalidOperationException(
+                $"{AllowTrustedProxySetupEnvironmentVariable}=1 requires "
+                + $"{TrustedProxySetupTokenEnvironmentVariable} to be set.");
+        }
+
+        var tokenBytes = Encoding.UTF8.GetBytes(token);
+        if (tokenBytes.Length < MinTrustedProxySetupTokenBytes
+            || tokenBytes.Length > MaxTrustedProxySetupTokenBytes)
+        {
+            throw new InvalidOperationException(
+                $"{TrustedProxySetupTokenEnvironmentVariable} must contain between "
+                + $"{MinTrustedProxySetupTokenBytes} and {MaxTrustedProxySetupTokenBytes} UTF-8 bytes.");
+        }
+
+        return SHA256.HashData(tokenBytes);
     }
 
     private static bool IsEnvironmentTruthy(string? value)

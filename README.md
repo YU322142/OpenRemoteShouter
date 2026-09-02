@@ -48,13 +48,13 @@ OpenRemoteShouter 是一个局域网远程喊话工具。它在电脑上启动�
    - Linux/macOS：运行 `./run.sh`，默认后台启动；如需在终端内查看输出，运行 `./run.sh --foreground`。
    - Portable 包：需要先安装 .NET 8 Runtime，再运行 `run.sh` 或 `run.bat`
 3. 打开控制台窗口或托盘菜单，复制访问地址。
-4. 默认服务只监听本机回环地址，先在本机浏览器完成初始化；如需让同一局域网设备访问，请配置 HTTPS PFX，或明确设置 `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1` 后再访问显示的 LAN 地址。
+4. 默认服务只监听本机回环地址；可在本机浏览器初始化，也可按“可信中转”章节显式配置远程初始化。
 
 启用远程访问后仍无法访问，请检查防火墙是否放行 `21212` 端口以及证书/监听模式是否配置正确。
 
 ## 账户与安全
 
-首次打开 WebUI 时，需要先在本机 `localhost` / `127.0.0.1` 创建管理员账户；远程设备不能抢先完成初始化。初始化后，WebUI 和喊话 API 都需要登录。
+首次打开 WebUI 时，需要创建管理员账户。默认只接受本机 `localhost` / `127.0.0.1` 初始化；只有显式配置可信中转、强令牌和 HTTPS 后，远程教师才可以完成初始化。初始化后，WebUI 和喊话 API 都需要登录。
 
 已实现的安全措施：
 
@@ -64,11 +64,13 @@ OpenRemoteShouter 是一个局域网远程喊话工具。它在电脑上启动�
 - 所有修改类 API 都需要 CSRF 令牌。
 - 修改密码、禁用用户或删除用户会使相关会话失效。
 - 管理员不能禁用或删除自己的当前账户，系统至少保留一个启用的管理员。
-- 首次管理员初始化只能从本机完成。
+- 首次管理员初始化默认只能从本机完成；远程初始化必须同时满足固定中转 IP、显式开关、HTTPS 和高熵令牌。
 - WebUI 响应包含基础安全头和 CSP。
 - 登录校验会限制单个来源的失败次数，并限制内存中的限流/会话记录数量。
 - 账户数据库启动时会校验文件大小、结构、用户数量和密码哈希参数，损坏文件会拒绝加载而不会重新进入初始化。
 - TTS 缓存和日志文件都有大小上限，超出时按最旧文件自动清理或轮转，避免磁盘被请求持续占满。
+
+如果全新解压后页面显示“账户服务不可用”或仍显示登录，不要反复尝试登录：先检查实际运行账户的数据目录（Windows 默认是 `%LOCALAPPDATA%\\OpenRemoteShouter\\accounts.json`）以及文件权限、完整性和日志。升级或重新解压不会自动清空旧账户；已有有效账户时显示登录是正常行为，损坏或空的 `accounts.json` 会被安全地拒绝加载。
 
 ### 传输安全
 
@@ -87,11 +89,41 @@ unset OPEN_REMOTE_SHOUTER_HTTPS_CERT_PASSWORD
 
 PFX 文件包含私钥，应限制为运行账户可读（Linux/macOS 可执行 `chmod 600 /path/to/server.pfx`，并确保其父目录不可被其他账户写入）。
 
-来源地址限流按应用实际看到的 TCP 对端地址计算；程序不信任 `X-Forwarded-*` 头，因此反向代理或共享 NAT 后的多个用户可能共用一个来源桶。成功登录只清除该来源+用户名桶，不会清除来源级失败计数；需要多人共享出口时，应在可信网关上做更细粒度的限流，并避免把应用直接暴露在明文 HTTP 上。
+### 可信中转
+
+默认情况下，程序不信任任何转发头。若要让固定中转节点代为终止 HTTPS，请显式设置 `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS`，只填写应用实际看到的 TCP 对端 IP，例如同机反代的 `127.0.0.1` 或 VPN 中转地址；只对白名单中的精确 IP 启用 `X-Forwarded-For`、`X-Forwarded-Host` 和 `X-Forwarded-Proto`。
+
+若还要允许第一次管理员创建也走远程中转，再额外设置 `OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1` 和至少 32 字节的随机 `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN`。只要请求的原始 TCP 对端命中中转白名单，服务端就一律按中转请求处理，不会因为中转改写了 `Host` 或删掉转发头而降级成免令牌本机路径；远程初始化开关未打开时会拒绝该请求，打开后则必须同时满足有效令牌和 HTTPS。令牌只通过 `X-OpenRemoteShouter-Setup-Token` 请求头提交，服务端只在空账户库时接受，并在本次进程成功初始化后失效。开关开启但缺少白名单或令牌时，程序会拒绝启动。
+
+```bash
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
+export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN="$(openssl rand -base64 48)"
+```
+
+中转必须覆盖（而不是追加）客户端提交的 `X-Forwarded-Host`、`X-Forwarded-Proto` 和 `X-Forwarded-For`，并通过 FRP TLS、WireGuard、SSH 隧道或其他受保护链路连接班级端。不要把令牌放在 URL；不要把跨机器回源配置成裸 HTTP。远程初始化页面会显示令牌输入框；如果把同机 `127.0.0.1` 也列入中转白名单，应用无法再区分同一地址上的反代和本机浏览器，因此二者都按中转请求处理。若必须无令牌本机初始化，请在配置该回环白名单前先完成初始化，或暂时移除该地址并关闭远程初始化开关后重启服务。
+
+命令行远程初始化时，把令牌放在请求头（不要放进 URL 或日志）：
+
+```bash
+read -r -s -p 'Setup token: ' ORS_SETUP_TOKEN
+printf '\n'
+curl --fail-with-body -sS \
+  -H 'Content-Type: application/json' \
+  -H 'Origin: https://class.example.test' \
+  -H "X-OpenRemoteShouter-Setup-Token: $ORS_SETUP_TOKEN" \
+  -X POST 'https://class.example.test/api/auth/setup' \
+  -d '{"username":"teacher","displayName":"Teacher","password":"CHANGE-ME"}'
+unset ORS_SETUP_TOKEN
+```
+
+Nginx/Caddy 等反代至少要把外部主机名和协议写入这些头（示意：`Host $host`、`X-Forwarded-Host $host`、`X-Forwarded-Proto $scheme`、`X-Forwarded-For $remote_addr`），并确保客户端不能预先注入同名值。若使用 FRP，应用看到的 TCP 对端通常是同机 `frpc` 的 `127.0.0.1`，此时白名单应填写 `127.0.0.1`，而不是想当然填写 `frps` 的公网地址；请以日志/网络实际观察到的对端地址为准。
+
+来源地址限流按应用实际看到的 TCP 对端地址计算；若中转节点没有正确传递客户端地址，多个用户可能共用一个来源桶。成功登录只清除该来源+用户名桶，不会清除来源级失败计数；需要多人共享出口时，应在可信网关上做更细粒度的限流，并避免把应用直接暴露在明文 HTTP 上。
 
 在部署脚本中希望证书缺失时直接拒绝启动，可以再设置 `OPEN_REMOTE_SHOUTER_REQUIRE_HTTPS=1`。
 
-配置证书后服务只在该端口提供 HTTPS，并会在访问地址中显示 `https://`；Cookie 会自动启用 `Secure` 属性。当前程序不信任 `X-Forwarded-*` 头，因此如果使用反向代理终止 TLS，应让应用本身加载 PFX，或确保代理到应用之间仍使用受保护的直连方案；否则应用会把请求视为 HTTP。首次初始化仍必须直接从运行程序的本机访问，不能通过未受信任的反向代理转发初始化请求。
+配置证书后服务只在该端口提供 HTTPS，并会在访问地址中显示 `https://`；Cookie 会自动启用 `Secure` 属性。若改由可信中转终止 TLS，则应用本身可以继续只在本机回环上跑 HTTP，但必须完成上面的白名单配置，并让中转节点正确设置转发头；应用会据此恢复外部 HTTPS 的同源校验和安全 Cookie。若还要让首次初始化也走这个中转，需要同时打开远程初始化开关并配置令牌。
 
 如果必须兼容旧的局域网明文部署，需显式设置 `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1` 才会监听所有网卡；启动日志会持续提示风险。此模式下密码、会话 Cookie 和 CSRF 令牌均可能被网络窃听，生产环境不应使用。
 
@@ -210,7 +242,7 @@ OPEN_REMOTE_SHOUTER_X11_ENABLE_IME=1 ./run.sh --foreground
 - `POST /api/close`：关闭当前显示
 - `GET/POST/PUT/DELETE /api/users`：管理员用户管理
 
-除登录和首次本机初始化外，修改类 API 需要同时发送登录 Cookie 和 `X-OpenRemoteShouter-CSRF` 令牌。登录响应中的 `state.csrfToken` 就是当前会话令牌。下面是一个不会把密码直接写进命令行参数的 `curl` 示例（需要 `jq`）：
+除登录和首次初始化外，修改类 API 需要同时发送登录 Cookie 和 `X-OpenRemoteShouter-CSRF` 令牌。登录响应中的 `state.csrfToken` 就是当前会话令牌。下面是一个不会把密码直接写进命令行参数的 `curl` 示例（需要 `jq`）：
 
 ```bash
 set -eu
@@ -246,7 +278,7 @@ curl --fail-with-body -sS -b "$cookie_file" \
   }'
 ```
 
-如果服务启用了 HTTPS，将 `base_url` 改为 `https://主机名:21212`，并按证书部署策略配置 `curl` 的证书校验。首次初始化只能从运行程序的本机直接访问 `/api/auth/setup`，不能用上面的远程登录流程代替。
+如果服务启用了 HTTPS，将 `base_url` 改为 `https://主机名:21212`，并按证书部署策略配置 `curl` 的证书校验。首次初始化可以在本机直接完成，或者通过白名单中的可信中转完成；远程 `curl` 需要额外发送 `X-OpenRemoteShouter-Setup-Token` 请求头。
 
 字段说明：
 

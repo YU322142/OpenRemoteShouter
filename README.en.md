@@ -48,13 +48,13 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
    - Linux/macOS: run `./run.sh`, which starts in the background by default. Use `./run.sh --foreground` to keep output in the terminal.
    - Portable package: install the .NET 8 Runtime first, then run `run.sh` or `run.bat`.
 3. Open the console window or tray menu and copy the displayed access address.
-4. By default, the service listens only on the local loopback interface. Complete initial setup from a local browser first. To allow devices on the same LAN to connect, configure an HTTPS PFX certificate, or explicitly set `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1` before using the displayed LAN address.
+4. By default, the service listens only on the local loopback interface. You can initialize it locally, or explicitly configure a trusted relay for remote first-run setup as described below.
 
 If remote access still does not work, check that the firewall allows port `21212` and that the certificate and listener mode are configured correctly.
 
 ## Accounts and security
 
-The first WebUI visit must create an administrator account from the local `localhost` or `127.0.0.1` address. A remote device cannot race to complete initialization. After initialization, both the WebUI and announcement APIs require authentication.
+The first WebUI visit must create an administrator account. By default, only `localhost` or `127.0.0.1` may initialize it; remote teacher setup requires an explicitly allowlisted relay, HTTPS, and a high-entropy token. After initialization, both the WebUI and announcement APIs require authentication.
 
 Implemented protections include:
 
@@ -64,11 +64,13 @@ Implemented protections include:
 - All state-changing APIs require a CSRF token.
 - Changing a password, disabling a user, or deleting a user invalidates the affected sessions.
 - An administrator cannot disable or delete the current account, and the system always keeps at least one enabled administrator.
-- Initial administrator setup is local-only.
+- Initial administrator setup is local-only by default; remote setup requires a fixed relay IP, an explicit opt-in, HTTPS, and a high-entropy token.
 - WebUI responses include baseline security headers and a Content Security Policy (CSP).
 - Login verification limits failed attempts per source and bounds the number of in-memory limiter and session records.
 - At startup, the account database is checked for file size, structure, user count, and password-hash parameters. A corrupt file is rejected instead of silently returning to setup mode.
 - TTS cache and log files have size limits. Old files are removed or rotated when limits are reached, preventing repeated requests from filling the disk indefinitely.
+
+If a freshly extracted copy shows “account service unavailable” or unexpectedly shows the login screen, do not keep retrying sign-in. Check the data directory used by the actual process (on Windows the default is `%LOCALAPPDATA%\\OpenRemoteShouter\\accounts.json`), its permissions, integrity, and the log. Upgrades and re-extraction do not clear existing accounts; showing the login screen is normal when a valid account file already exists, while a corrupt or empty `accounts.json` is rejected fail-closed.
 
 ### Transport security
 
@@ -87,11 +89,41 @@ The password is entered silently and interactively, so it is not written to shel
 
 A PFX file contains a private key. Restrict it to the service account (`chmod 600 /path/to/server.pfx` on Linux/macOS) and ensure that its parent directory is not writable by other accounts.
 
-Source-address throttling uses the TCP peer address actually observed by the application. The program does not trust `X-Forwarded-*` headers, so multiple users behind a reverse proxy or shared NAT may share one source bucket. A successful login clears only the source-plus-username bucket, not the source-wide failure counter. If many users share one egress address, use finer-grained limiting at a trusted gateway and avoid exposing the application over plaintext HTTP.
+### Trusted relay
+
+By default, the program does not trust forwarding headers. To let a fixed relay terminate HTTPS, set `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS` and list only the exact TCP peer IPs observed by the application, such as `127.0.0.1` for a same-host proxy or a VPN relay address. Only `X-Forwarded-For`, `X-Forwarded-Host`, and `X-Forwarded-Proto` from those exact IPs are honored.
+
+If first-run admin creation should also go through that relay, additionally set `OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1` and a random `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN` of at least 32 bytes. Any request whose original TCP peer matches the relay allowlist is always treated as a relay request; changing `Host` or stripping forwarding headers cannot downgrade it to the token-free local path. The request is rejected while remote setup is disabled, and requires both HTTPS and a valid token when enabled. The token is sent only in the `X-OpenRemoteShouter-Setup-Token` header, is accepted only while the account database is empty, and is consumed after successful setup in the current process. Startup fails when the opt-in is enabled without both the IP allowlist and token.
+
+```bash
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
+export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN="$(openssl rand -base64 48)"
+```
+
+The relay must overwrite (rather than append) client-supplied `X-Forwarded-Host`, `X-Forwarded-Proto`, and `X-Forwarded-For`, and its connection to the classroom host must use FRP TLS, WireGuard, an SSH tunnel, or another protected transport. Do not put the token in a URL or use plaintext HTTP across machines. The setup page shows a token field for remote initialization. When `127.0.0.1` is allowlisted for a same-host relay, the app cannot distinguish that proxy from a direct local browser on the same address, so both are treated as relay requests. For token-free local setup, initialize before adding that loopback address, or temporarily remove it and disable remote setup before restarting the service.
+
+For command-line remote setup, send the token as a header (never in the URL or logs):
+
+```bash
+read -r -s -p 'Setup token: ' ORS_SETUP_TOKEN
+printf '\n'
+curl --fail-with-body -sS \
+  -H 'Content-Type: application/json' \
+  -H 'Origin: https://class.example.test' \
+  -H "X-OpenRemoteShouter-Setup-Token: $ORS_SETUP_TOKEN" \
+  -X POST 'https://class.example.test/api/auth/setup' \
+  -d '{"username":"teacher","displayName":"Teacher","password":"CHANGE-ME"}'
+unset ORS_SETUP_TOKEN
+```
+
+An Nginx/Caddy-style relay should set the external host and scheme explicitly (for example, `Host $host`, `X-Forwarded-Host $host`, `X-Forwarded-Proto $scheme`, and `X-Forwarded-For $remote_addr`) and prevent clients from injecting duplicate values. With FRP, the application usually sees the same-host `frpc` peer as `127.0.0.1`, so that is the address to allowlist; do not assume the public `frps` address is visible to the classroom process. Confirm the actual TCP peer in the deployment logs.
+
+Source-address throttling uses the TCP peer address actually observed by the application. If the relay does not forward the client address correctly, multiple users may share one source bucket. A successful login clears only the source-plus-username bucket, not the source-wide failure counter. If many users share one egress address, use finer-grained limiting at a trusted gateway and avoid exposing the application over plaintext HTTP.
 
 For deployment scripts that should refuse to start without a certificate, also set `OPEN_REMOTE_SHOUTER_REQUIRE_HTTPS=1`.
 
-With a certificate configured, the service provides HTTPS on that port and displays `https://` access addresses; cookies automatically receive the `Secure` attribute. The application intentionally does not trust `X-Forwarded-*` headers. If a reverse proxy terminates TLS, let the application load the PFX itself or keep the proxy-to-application connection protected; otherwise the application will treat requests as HTTP. Initial setup must still be sent directly from the machine running the program and must not be forwarded through an untrusted proxy.
+With a certificate configured, the service provides HTTPS on that port and displays `https://` access addresses; cookies automatically receive the `Secure` attribute. If a trusted relay terminates TLS, the app can keep listening on loopback HTTP, but you must apply the allowlist above and have the relay set the forwarding headers correctly; the app will then use the external HTTPS scheme for same-origin checks and secure cookies. Remote first-run setup additionally requires the explicit opt-in and token.
 
 If compatibility with legacy plaintext LAN deployments is required, explicitly set `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1` to listen on all interfaces. Startup logs continuously warn about this mode. Passwords, session cookies, and CSRF tokens can be sniffed on the network, so this mode should not be used in production.
 
@@ -210,7 +242,7 @@ After startup:
 - `POST /api/close`: close the current display.
 - `GET/POST/PUT/DELETE /api/users`: administrator user management.
 
-Except for login and first-time local setup, state-changing APIs require both the login cookie and the `X-OpenRemoteShouter-CSRF` token. The `state.csrfToken` value in the login response is the token for the current session. The following `curl` example avoids placing the password directly in command-line arguments and requires `jq`:
+Except for login and first-time setup, state-changing APIs require both the login cookie and the `X-OpenRemoteShouter-CSRF` token. The `state.csrfToken` value in the login response is the token for the current session. The following `curl` example avoids placing the password directly in command-line arguments and requires `jq`:
 
 ```bash
 set -eu
@@ -246,7 +278,7 @@ curl --fail-with-body -sS -b "$cookie_file" \
   }'
 ```
 
-If HTTPS is enabled, change `base_url` to `https://hostname:21212` and configure `curl` certificate verification according to the certificate deployment policy. Initial setup can only be performed directly from the machine running the program at `/api/auth/setup`; it cannot be replaced by the remote login flow above.
+If HTTPS is enabled, change `base_url` to `https://hostname:21212` and configure `curl` certificate verification according to the certificate deployment policy. Initial setup can be performed locally or through an explicitly allowlisted trusted relay; remote `curl` requests must also send the `X-OpenRemoteShouter-Setup-Token` header.
 
 Field reference:
 

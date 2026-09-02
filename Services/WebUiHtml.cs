@@ -142,6 +142,7 @@ public static class WebUiHtml
       background: #98a2b3;
     }
     .dot.ok { background: #16a34a; }
+    .dot.error { background: #dc2626; }
     .layout {
       display: grid;
       grid-template-columns: 300px 1fr;
@@ -414,11 +415,16 @@ public static class WebUiHtml
             <label for="authDisplayName">显示名称</label>
             <input id="authDisplayName" name="displayName" type="text" maxlength="48">
           </div>
+          <div id="setupTokenField" class="hidden">
+            <label for="authSetupToken">可信中转令牌（远程初始化时填写）</label>
+            <input id="authSetupToken" name="setupToken" type="password" autocomplete="one-time-code" maxlength="512">
+          </div>
           <div>
             <label for="authPassword">密码</label>
             <input id="authPassword" name="password" type="password" autocomplete="current-password" required>
           </div>
           <button id="authSubmit" type="submit">登录</button>
+          <button id="authRetry" class="secondary hidden" type="button">重新检查账户服务</button>
           <div id="authMessage" class="notice hidden"></div>
         </form>
       </div>
@@ -593,7 +599,7 @@ public static class WebUiHtml
   </div>
 
   <script nonce="{{nonce}}">
-    const state = { user: null, csrfToken: null, setupRequired: false, users: [], voices: [] };
+    const state = { user: null, csrfToken: null, setupRequired: false, remoteSetupEnabled: false, authUnavailable: false, users: [], voices: [] };
     const $ = id => document.getElementById(id);
 
     async function api(path, options = {}) {
@@ -622,9 +628,12 @@ public static class WebUiHtml
     }
 
     function setAuthState(authState) {
+      state.authUnavailable = false;
       state.setupRequired = !!authState.setupRequired;
+      state.remoteSetupEnabled = !!authState.remoteSetupEnabled;
       state.user = authState.user || null;
       state.csrfToken = authState.csrfToken || null;
+      hideNotice($('authMessage'));
       renderShell();
     }
 
@@ -637,12 +646,48 @@ public static class WebUiHtml
     }
 
     function renderAuth() {
-      $('authTitle').textContent = state.setupRequired ? '创建管理员' : '登录';
-      $('authSubmit').textContent = state.setupRequired ? '完成初始化' : '登录';
-      $('authModeText').textContent = state.setupRequired ? '本机初始化' : '账户登录';
-      $('authDot').classList.toggle('ok', state.setupRequired);
-      $('displayNameField').classList.toggle('hidden', !state.setupRequired);
+      const unavailable = state.authUnavailable;
+      $('authTitle').textContent = unavailable ? '账户服务不可用' : (state.setupRequired ? '创建管理员' : '登录');
+      $('authSubmit').textContent = unavailable ? '暂不可用' : (state.setupRequired ? '完成初始化' : '登录');
+      $('authModeText').textContent = unavailable
+        ? '请检查服务'
+        : (state.setupRequired
+          ? (state.remoteSetupEnabled ? '可信中转初始化' : '本机初始化')
+          : '账户登录');
+      $('authDot').classList.toggle('ok', !unavailable && state.setupRequired);
+      $('authDot').classList.toggle('error', unavailable);
+      $('displayNameField').classList.toggle('hidden', !state.setupRequired || unavailable);
+      $('setupTokenField').classList.toggle('hidden', !state.setupRequired || !state.remoteSetupEnabled || unavailable);
       $('authPassword').autocomplete = state.setupRequired ? 'new-password' : 'current-password';
+      // A relay may inject the token server-side, so keep this field optional
+      // in the browser and let the endpoint validate the header.
+      $('authSetupToken').required = false;
+      $('authSubmit').disabled = unavailable;
+      $('authRetry').classList.toggle('hidden', !unavailable);
+      for (const input of $('authForm').querySelectorAll('input')) input.disabled = unavailable;
+    }
+
+    function showAuthUnavailable(message) {
+      state.authUnavailable = true;
+      state.setupRequired = false;
+      state.user = null;
+      state.csrfToken = null;
+      renderShell();
+      showNotice($('authMessage'), message, true);
+    }
+
+    async function loadAuthState() {
+      $('authRetry').disabled = true;
+      try {
+        const body = await api('/api/auth/state');
+        setAuthState(body.state);
+      } catch (error) {
+        showAuthUnavailable(error.status === 503
+          ? '账户数据库无法读取。请检查数据目录、accounts.json 文件权限和日志，然后重启程序。'
+          : '无法读取账户状态。请确认服务正在运行后重试。');
+      } finally {
+        $('authRetry').disabled = false;
+      }
     }
 
     async function renderApp() {
@@ -758,23 +803,32 @@ public static class WebUiHtml
 
     $('authForm').addEventListener('submit', async event => {
       event.preventDefault();
+      if (state.authUnavailable) return;
       hideNotice($('authMessage'));
       const payload = {
         username: $('authUsername').value,
         displayName: $('authDisplayName').value,
         password: $('authPassword').value
       };
+      const headers = {};
+      if (state.setupRequired && state.remoteSetupEnabled && $('authSetupToken').value) {
+        headers['X-OpenRemoteShouter-Setup-Token'] = $('authSetupToken').value;
+      }
       try {
         const body = await api(state.setupRequired ? '/api/auth/setup' : '/api/auth/login', {
           method: 'POST',
+          headers,
           body: JSON.stringify(payload)
         });
         setAuthState(body.state);
         $('authPassword').value = '';
+        $('authSetupToken').value = '';
       } catch (error) {
         showNotice($('authMessage'), error.message, true);
       }
     });
+
+    $('authRetry').addEventListener('click', loadAuthState);
 
     $('logoutButton').addEventListener('click', async () => {
       try {
@@ -877,15 +931,7 @@ public static class WebUiHtml
     (async function boot() {
       syncRanges();
       $('themeSwatch').className = `swatch ${$('theme').value}`;
-      try {
-        const body = await api('/api/auth/state');
-        setAuthState(body.state);
-      } catch (error) {
-        state.setupRequired = false;
-        state.user = null;
-        renderShell();
-        showNotice($('authMessage'), error.message || '账户服务暂时不可用。', true);
-      }
+      await loadAuthState();
     })();
   </script>
 </body>
