@@ -64,9 +64,10 @@ jobs:
           cat > "artifacts/$artifact_name/run.sh" << 'SCRIPT'
           #!/usr/bin/env bash
           set -e
-          export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS="${OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS:-127.0.0.1}"
-          export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP="${OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP:-1}"
-          export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN="${OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN:-REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES}"
+          # Uncomment all three lines for trusted relay setup, then replace the token.
+          # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
+          # export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+          # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES'
           script_dir="$(cd "$(dirname "$0")" && pwd)"
           app_dir="$script_dir/OpenRemoteShouter"
           mkdir -p "$script_dir/logs"
@@ -86,9 +87,10 @@ jobs:
 
           cat > "artifacts/$artifact_name/run.bat" << 'SCRIPT'
           @echo off
-          if not defined OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1"
-          if not defined OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP set "OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1"
-          if not defined OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN=REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES"
+          rem Uncomment all three lines for trusted relay setup, then replace the token.
+          rem set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1"
+          rem set "OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1"
+          rem set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN=REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES"
           if not exist "%~dp0logs" mkdir "%~dp0logs"
           set "OPEN_REMOTE_SHOUTER_LOG_FILE=%~dp0logs\openremoteshouter.log"
           cd /d "%~dp0OpenRemoteShouter"
@@ -186,9 +188,10 @@ jobs:
           if [[ "$rid" == win-* ]]; then
             cat > "$package_root/run.bat" << 'SCRIPT'
           @echo off
-          if not defined OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1"
-          if not defined OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP set "OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1"
-          if not defined OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN=REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES"
+          rem Uncomment all three lines for trusted relay setup, then replace the token.
+          rem set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1"
+          rem set "OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1"
+          rem set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN=REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES"
           if not exist "%~dp0logs" mkdir "%~dp0logs"
           set "OPEN_REMOTE_SHOUTER_LOG_FILE=%~dp0logs\openremoteshouter.log"
           start "" "%~dp0OpenRemoteShouter\OpenRemoteShouter.exe" %*
@@ -199,9 +202,10 @@ jobs:
             cat > "$package_root/run.sh" << 'SCRIPT'
           #!/usr/bin/env bash
           set -e
-          export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS="${OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS:-127.0.0.1}"
-          export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP="${OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP:-1}"
-          export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN="${OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN:-REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES}"
+          # Uncomment all three lines for trusted relay setup, then replace the token.
+          # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
+          # export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+          # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES'
           script_dir="$(cd "$(dirname "$0")" && pwd)"
           app_dir="$script_dir/OpenRemoteShouter"
           mkdir -p "$script_dir/logs"
@@ -365,9 +369,10 @@ jobs:
           cat > "$package_root/run.sh" << 'SCRIPT'
           #!/usr/bin/env bash
           set -e
-          export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS="${OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS:-127.0.0.1}"
-          export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP="${OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP:-1}"
-          export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN="${OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN:-REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES}"
+          # Uncomment all three lines for trusted relay setup, then replace the token.
+          # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
+          # export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+          # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES'
           script_dir="$(cd "$(dirname "$0")" && pwd)"
           app_dir="$script_dir/OpenRemoteShouter"
 
