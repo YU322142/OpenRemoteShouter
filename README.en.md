@@ -169,7 +169,106 @@ export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
 export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='at-least-32-random-bytes'
 ```
 
-When `frpc` and the app run on the same computer, this is usually `127.0.0.1`; otherwise use the TCP peer shown in the logs. Start the app and request `https://class.example.test/api/auth/state`; once it reports `remoteSetupEnabled: true`, create the first administrator with the setup token. The FRP `auth.token` and the OpenRemoteShouter setup token are separate secrets and must not be reused.
+The following steps are split by operating system. Download the matching FRP release binaries and keep `frps` and `frpc` on the same FRP version.
+
+**Windows public relay**
+
+1. Put `frps.exe` and `frps.toml` in `C:\frp\`.
+2. Allow inbound TCP `7000` in Windows Firewall. Keep `22122` local-only; do not open it to the Internet.
+3. Start from PowerShell:
+
+   ```powershell
+   C:\frp\frps.exe -c C:\frp\frps.toml
+   ```
+
+   For autostart, create a Task Scheduler task that runs at system startup with program `C:\frp\frps.exe` and arguments `-c C:\frp\frps.toml`.
+
+**Linux public relay**
+
+1. Store `frps` at `/opt/frp/frps` and the config at `/etc/frp/frps.toml`.
+2. Open only the FRP and HTTPS ports, for example:
+
+   ```bash
+   sudo ufw allow 7000/tcp
+   sudo ufw allow 80,443/tcp
+   sudo ufw deny 22122/tcp
+   ```
+
+3. Verify in the foreground with `sudo /opt/frp/frps -c /etc/frp/frps.toml`. For systemd, create `/etc/systemd/system/frps.service`:
+
+   ```ini
+   [Unit]
+   Description=FRP server
+   After=network-online.target
+   [Service]
+   ExecStart=/opt/frp/frps -c /etc/frp/frps.toml
+   Restart=on-failure
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+   Then run `sudo systemctl daemon-reload && sudo systemctl enable --now frps`.
+
+**macOS public relay**
+
+1. Put `frps` and `frps.toml` in `~/frp/` (or `/usr/local/etc/frp/`).
+2. Allow TCP `7000`, `80`, and `443` in the host firewall/security group; do not expose `22122`.
+3. Start with `~/frp/frps -c ~/frp/frps.toml`. For autostart, use Login Items or a launchd agent under `~/Library/LaunchAgents/` invoking the same command.
+
+**Windows classroom computer (OpenRemoteShouter and frpc)**
+
+Put `frpc.exe` and `frpc.toml` in `C:\frp\`, then run in PowerShell:
+
+```powershell
+[Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS", "127.0.0.1", "User")
+[Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP", "1", "User")
+[Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN", "at-least-32-random-bytes", "User")
+C:\frp\frpc.exe -c C:\frp\frpc.toml
+```
+
+Restart OpenRemoteShouter after changing environment variables. If the app and `frpc` are on different machines, replace `127.0.0.1` with the TCP peer IP shown in the app logs.
+
+**Linux classroom computer**
+
+Save the config as `/etc/frp/frpc.toml` and run:
+
+```bash
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
+export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='at-least-32-random-bytes'
+/opt/frp/frpc -c /etc/frp/frpc.toml
+```
+
+When the app runs under systemd, put these variables in its `Environment=` or `EnvironmentFile=` instead of only in an interactive shell.
+
+**macOS classroom computer**
+
+Save `frpc` and `frpc.toml` under `~/frp/`, then start from the same terminal as the app:
+
+```zsh
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
+export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='at-least-32-random-bytes'
+~/frp/frpc -c ~/frp/frpc.toml
+```
+
+If launchd starts the app, put the same variables in the plist's `EnvironmentVariables` and reload the plist.
+
+**Verify the relay**
+
+Windows PowerShell:
+
+```powershell
+Invoke-RestMethod https://class.example.test/api/auth/state | ConvertTo-Json
+```
+
+Linux/macOS:
+
+```bash
+curl -fsS https://class.example.test/api/auth/state
+```
+
+The response should include `setupRequired: true` for an empty account database and `remoteSetupEnabled: true`. Submit the setup token in the page to create the first administrator. The FRP `auth.token` and OpenRemoteShouter setup token are separate secrets and must not be reused.
 
 Source-address throttling uses the TCP peer address actually observed by the application. If the relay does not forward the client address correctly, multiple users may share one source bucket. A successful login clears only the source-plus-username bucket, not the source-wide failure counter. If many users share one egress address, use finer-grained limiting at a trusted gateway and avoid exposing the application over plaintext HTTP.
 

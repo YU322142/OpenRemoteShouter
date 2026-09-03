@@ -169,7 +169,106 @@ export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
 export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='至少32字节的随机值'
 ```
 
-若 `frpc` 与应用同机，通常填写 `127.0.0.1`；否则填写日志中实际看到的 TCP 对端地址。启动后访问 `https://class.example.test/api/auth/state`，确认返回 `remoteSetupEnabled: true`，再使用初始化令牌创建管理员。FRP 的 `auth.token` 与 OpenRemoteShouter 初始化令牌是两套不同的密钥，不能混用。
+下面按操作系统列出完整的落地步骤。先从 FRP 官方发布包中取出对应平台的 `frps`（公网中转机）和 `frpc`（班级电脑），并确保两端版本一致。
+
+**Windows 公网中转机**
+
+1. 将 `frps.exe` 和配置保存到 `C:\frp\`，文件为 `C:\frp\frps.toml`。
+2. 在“高级防火墙”中允许入站 TCP `7000`；`22122` 只允许本机访问（不要对公网放行）。
+3. PowerShell 启动：
+
+   ```powershell
+   C:\frp\frps.exe -c C:\frp\frps.toml
+   ```
+
+   需要常驻时，可在任务计划程序中创建“系统启动时运行”的任务，程序填写 `C:\frp\frps.exe`，参数填写 `-c C:\frp\frps.toml`。
+
+**Linux 公网中转机**
+
+1. 将 `frps` 和配置保存为 `/opt/frp/frps`、`/etc/frp/frps.toml`。
+2. 防火墙只开放 FRP 端口和 HTTPS 端口，例如：
+
+   ```bash
+   sudo ufw allow 7000/tcp
+   sudo ufw allow 80,443/tcp
+   sudo ufw deny 22122/tcp
+   ```
+
+3. 先前台验证：`sudo /opt/frp/frps -c /etc/frp/frps.toml`。确认无误后，用 systemd 运行（`/etc/systemd/system/frps.service`）：
+
+   ```ini
+   [Unit]
+   Description=FRP server
+   After=network-online.target
+   [Service]
+   ExecStart=/opt/frp/frps -c /etc/frp/frps.toml
+   Restart=on-failure
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+   执行 `sudo systemctl daemon-reload && sudo systemctl enable --now frps`。
+
+**macOS 公网中转机**
+
+1. 将 `frps` 和 `frps.toml` 放到 `~/frp/`（或 `/usr/local/etc/frp/`）。
+2. 在系统防火墙/云主机安全组中允许 TCP `7000`、`80`、`443`，不要开放 `22122`。
+3. 终端启动：`~/frp/frps -c ~/frp/frps.toml`。需要开机常驻时，用“登录项”或 launchd 的 `~/Library/LaunchAgents/` 服务调用同一命令。
+
+**Windows 班级电脑（运行 OpenRemoteShouter 和 frpc）**
+
+将 `frpc.exe`、`frpc.toml` 放到 `C:\frp\`，并在 PowerShell 中设置应用环境变量：
+
+```powershell
+[Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS", "127.0.0.1", "User")
+[Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP", "1", "User")
+[Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN", "至少32字节的随机值", "User")
+C:\frp\frpc.exe -c C:\frp\frpc.toml
+```
+
+设置环境变量后要重启 OpenRemoteShouter；如果应用与 `frpc` 不在同一台电脑，把 `127.0.0.1` 换成应用日志中看到的实际 TCP 对端 IP。
+
+**Linux 班级电脑**
+
+将配置保存为 `/etc/frp/frpc.toml`，启动前在同一 shell 中执行：
+
+```bash
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
+export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='至少32字节的随机值'
+/opt/frp/frpc -c /etc/frp/frpc.toml
+```
+
+若用 systemd 启动应用，请把这些变量写入该服务的 `Environment=` 或 `EnvironmentFile=`，不要只写在交互式 shell。
+
+**macOS 班级电脑**
+
+将 `frpc`、`frpc.toml` 放到 `~/frp/`，在启动应用的终端中执行：
+
+```zsh
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
+export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
+export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='至少32字节的随机值'
+~/frp/frpc -c ~/frp/frpc.toml
+```
+
+如果应用由 launchd 启动，请把同样的变量写进对应 plist 的 `EnvironmentVariables`，然后重新加载该 plist。
+
+**验证**
+
+Windows PowerShell：
+
+```powershell
+Invoke-RestMethod https://class.example.test/api/auth/state | ConvertTo-Json
+```
+
+Linux/macOS：
+
+```bash
+curl -fsS https://class.example.test/api/auth/state
+```
+
+结果应包含 `setupRequired: true`（空账户库）和 `remoteSetupEnabled: true`。页面提交初始化令牌后再创建管理员。FRP 的 `auth.token` 与 OpenRemoteShouter 初始化令牌是两套不同的密钥，不能混用。
 
 来源地址限流按应用实际看到的 TCP 对端地址计算；若中转节点没有正确传递客户端地址，多个用户可能共用一个来源桶。成功登录只清除该来源+用户名桶，不会清除来源级失败计数；需要多人共享出口时，应在可信网关上做更细粒度的限流，并避免把应用直接暴露在明文 HTTP 上。
 
