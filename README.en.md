@@ -161,13 +161,15 @@ location / {
 }
 ```
 
-Classroom environment variables:
+Classroom application environment variables (these belong to OpenRemoteShouter, not `frpc`):
 
 ```bash
 export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=<actual-frpc-peer-ip-seen-by-the-app>
 export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
 export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='at-least-32-random-bytes'
 ```
+
+Prefer editing `run.bat` (Windows) or `run.sh` (Linux/macOS) beside the published application, replacing `REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES`, and launching the app through that script. `frpc` reads only `frpc.toml`; do not put `OPEN_REMOTE_SHOUTER_*` variables in the FRP config.
 
 The following steps are split by operating system. Download the matching FRP release binaries and keep `frps` and `frpc` on the same FRP version.
 
@@ -217,40 +219,42 @@ The following steps are split by operating system. Download the matching FRP rel
 
 **Windows classroom computer (OpenRemoteShouter and frpc)**
 
-Put `frpc.exe` and `frpc.toml` in `C:\frp\`, then run in PowerShell:
+Put `frpc.exe` and `frpc.toml` in `C:\frp\`. Edit `run.bat` beside OpenRemoteShouter, set the three `OPEN_REMOTE_SHOUTER_*` values, and launch it by double-clicking or from PowerShell. A temporary PowerShell setup is also possible:
 
 ```powershell
 [Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS", "127.0.0.1", "User")
 [Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP", "1", "User")
 [Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN", "at-least-32-random-bytes", "User")
-C:\frp\frpc.exe -c C:\frp\frpc.toml
+C:\path\to\OpenRemoteShouter\run.bat
 ```
+
+In a separate PowerShell window, run FRP: `C:\frp\frpc.exe -c C:\frp\frpc.toml`.
 
 Restart OpenRemoteShouter after changing environment variables. If the app and `frpc` are on different machines, replace `127.0.0.1` with the TCP peer IP shown in the app logs.
 
 **Linux classroom computer**
 
-Save the config as `/etc/frp/frpc.toml` and run:
+Save the config as `/etc/frp/frpc.toml`. Edit `run.sh` beside the published app, set the token and relay IP, and run `./run.sh` for the app; in another terminal run FRP:
 
 ```bash
-export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
-export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
-export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='at-least-32-random-bytes'
-/opt/frp/frpc -c /etc/frp/frpc.toml
+chmod +x ./run.sh
+./run.sh
 ```
+
+In another terminal, run FRP: `/opt/frp/frpc -c /etc/frp/frpc.toml`.
 
 When the app runs under systemd, put these variables in its `Environment=` or `EnvironmentFile=` instead of only in an interactive shell.
 
 **macOS classroom computer**
 
-Save `frpc` and `frpc.toml` under `~/frp/`, then start from the same terminal as the app:
+Save `frpc` and `frpc.toml` under `~/frp/`. Edit `run.sh` beside the published app, set the token and relay IP, and run `./run.sh` for the app; in another terminal run FRP:
 
 ```zsh
-export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
-export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
-export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='at-least-32-random-bytes'
-~/frp/frpc -c ~/frp/frpc.toml
+chmod +x ./run.sh
+./run.sh
 ```
+
+In another terminal, run FRP: `~/frp/frpc -c ~/frp/frpc.toml`.
 
 If launchd starts the app, put the same variables in the plist's `EnvironmentVariables` and reload the plist.
 
