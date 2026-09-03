@@ -169,7 +169,7 @@ export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
 export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='至少32字节的随机值'
 ```
 
-更推荐直接编辑发布目录中的 `run.bat`（Windows）或 `run.sh`（Linux/macOS），把 `REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES` 换成真实随机值，再用脚本启动应用。`frpc` 只读取上面的 `frpc.toml`；不要把 `OPEN_REMOTE_SHOUTER_*` 变量写进 FRP 配置。
+更推荐直接编辑发布目录中的 `run.bat`（Windows）或 `run.sh`（Linux/macOS），取消三行中转配置前的注释，把 `REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES` 换成真实随机值，再用脚本启动应用。默认保持注释，因此普通本机部署不会意外开启远程初始化。`frpc` 只读取上面的 `frpc.toml`；不要把 `OPEN_REMOTE_SHOUTER_*` 变量写进 FRP 配置。
 
 下面按操作系统列出完整的落地步骤。先从 FRP 官方发布包中取出对应平台的 `frps`（公网中转机）和 `frpc`（班级电脑），并确保两端版本一致。
 

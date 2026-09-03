@@ -169,7 +169,7 @@ export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
 export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='at-least-32-random-bytes'
 ```
 
-Prefer editing `run.bat` (Windows) or `run.sh` (Linux/macOS) beside the published application, replacing `REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES`, and launching the app through that script. `frpc` reads only `frpc.toml`; do not put `OPEN_REMOTE_SHOUTER_*` variables in the FRP config.
+Prefer editing `run.bat` (Windows) or `run.sh` (Linux/macOS) beside the published application: uncomment the three relay settings, replace `REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES`, and launch the app through that script. They are commented by default so a normal local deployment cannot enable remote setup accidentally. `frpc` reads only `frpc.toml`; do not put `OPEN_REMOTE_SHOUTER_*` variables in the FRP config.
 
 The following steps are split by operating system. Download the matching FRP release binaries and keep `frps` and `frpc` on the same FRP version.
 
