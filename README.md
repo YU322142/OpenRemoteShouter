@@ -161,13 +161,15 @@ location / {
 }
 ```
 
-班级端环境变量：
+班级端应用环境变量（设置给 OpenRemoteShouter，不是给 `frpc`）：
 
 ```bash
 export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=<班级端实际看到的frpc对端IP>
 export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
 export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='至少32字节的随机值'
 ```
+
+更推荐直接编辑发布目录中的 `run.bat`（Windows）或 `run.sh`（Linux/macOS），把 `REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES` 换成真实随机值，再用脚本启动应用。`frpc` 只读取上面的 `frpc.toml`；不要把 `OPEN_REMOTE_SHOUTER_*` 变量写进 FRP 配置。
 
 下面按操作系统列出完整的落地步骤。先从 FRP 官方发布包中取出对应平台的 `frps`（公网中转机）和 `frpc`（班级电脑），并确保两端版本一致。
 
@@ -217,40 +219,42 @@ export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='至少32字节的随机值
 
 **Windows 班级电脑（运行 OpenRemoteShouter 和 frpc）**
 
-将 `frpc.exe`、`frpc.toml` 放到 `C:\frp\`，并在 PowerShell 中设置应用环境变量：
+将 `frpc.exe`、`frpc.toml` 放到 `C:\frp\`。编辑 OpenRemoteShouter 同目录的 `run.bat`，设置其中三个 `OPEN_REMOTE_SHOUTER_*` 值，然后双击或在 PowerShell 中运行 `run.bat`。也可以临时在 PowerShell 中设置后启动应用：
 
 ```powershell
 [Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS", "127.0.0.1", "User")
 [Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP", "1", "User")
 [Environment]::SetEnvironmentVariable("OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN", "至少32字节的随机值", "User")
-C:\frp\frpc.exe -c C:\frp\frpc.toml
+C:\path\to\OpenRemoteShouter\run.bat
 ```
+
+另开一个 PowerShell 窗口运行 FRP：`C:\frp\frpc.exe -c C:\frp\frpc.toml`。
 
 设置环境变量后要重启 OpenRemoteShouter；如果应用与 `frpc` 不在同一台电脑，把 `127.0.0.1` 换成应用日志中看到的实际 TCP 对端 IP。
 
 **Linux 班级电脑**
 
-将配置保存为 `/etc/frp/frpc.toml`，启动前在同一 shell 中执行：
+将配置保存为 `/etc/frp/frpc.toml`。编辑发布目录中的 `run.sh`，设置令牌和中转 IP 后执行 `./run.sh` 启动应用；另开终端运行 FRP：
 
 ```bash
-export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
-export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
-export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='至少32字节的随机值'
-/opt/frp/frpc -c /etc/frp/frpc.toml
+chmod +x ./run.sh
+./run.sh
 ```
+
+另开终端运行 FRP：`/opt/frp/frpc -c /etc/frp/frpc.toml`。
 
 若用 systemd 启动应用，请把这些变量写入该服务的 `Environment=` 或 `EnvironmentFile=`，不要只写在交互式 shell。
 
 **macOS 班级电脑**
 
-将 `frpc`、`frpc.toml` 放到 `~/frp/`，在启动应用的终端中执行：
+将 `frpc`、`frpc.toml` 放到 `~/frp/`。编辑发布目录中的 `run.sh`，设置令牌和中转 IP 后执行 `./run.sh` 启动应用；另开终端运行 FRP：
 
 ```zsh
-export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
-export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
-export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='至少32字节的随机值'
-~/frp/frpc -c ~/frp/frpc.toml
+chmod +x ./run.sh
+./run.sh
 ```
+
+另开终端运行 FRP：`~/frp/frpc -c ~/frp/frpc.toml`。
 
 如果应用由 launchd 启动，请把同样的变量写进对应 plist 的 `EnvironmentVariables`，然后重新加载该 plist。
 
