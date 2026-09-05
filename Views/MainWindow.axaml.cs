@@ -41,7 +41,7 @@ public partial class MainWindow : Window
     {
         CurrentMessageText.Text = message is null
             ? "\u5f53\u524d\u6ca1\u6709\u6b63\u5728\u663e\u793a\u7684\u558a\u8bdd\u3002"
-            : $"\u6b63\u5728\u663e\u793a\uff1a{message.Title}\uff0c{message.DurationSeconds} \u79d2\u540e\u81ea\u52a8\u5173\u95ed\u3002";
+            : $"\u6b63\u5728\u663e\u793a\uff1a{message.Title}";
     }
 
     private async void StartButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -68,7 +68,7 @@ public partial class MainWindow : Window
         await _displayService.ShowAsync(new ShoutMessage(
             "\u672c\u673a\u6d4b\u8bd5",
             "\u8fd9\u662f\u4e00\u6761 OpenRemoteShouter \u6d4b\u8bd5\u6d88\u606f\u3002\n\u5982\u679c\u4f60\u80fd\u770b\u5230\u8fd9\u4e2a\u7a97\u53e3\uff0c\u663e\u793a\u94fe\u8def\u5de5\u4f5c\u6b63\u5e38\u3002",
-            ShoutDisplayMode.Popup,
+            ShoutDisplayMode.Fullscreen,
             10,
             true,
             true,

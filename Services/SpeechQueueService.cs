@@ -26,7 +26,13 @@ public sealed class SpeechQueueService
 
     public string? LastError { get; private set; }
 
-    public Task SpeakLatestAsync(string text, string voiceName, int rate, float volume)
+    public Task SpeakLatestAsync(
+        string text,
+        string voiceName,
+        int rate,
+        float volume,
+        Action<TimeSpan>? durationAvailable = null,
+        Action? speechFailed = null)
     {
         var normalized = NormalizeSpeechText(text);
         if (string.IsNullOrWhiteSpace(normalized))
@@ -43,7 +49,7 @@ public sealed class SpeechQueueService
             .FirstOrDefault(voice => string.Equals(voice.ShortName, voiceName, StringComparison.OrdinalIgnoreCase))
             ?.ShortName
             ?? ShoutRequest.DefaultVoiceName;
-        var workItem = new SpeechWorkItem(normalized, safeVoiceName, rate, volume);
+        var workItem = new SpeechWorkItem(normalized, safeVoiceName, rate, volume, durationAvailable, speechFailed);
         lock (_lock)
         {
             _queue.Enqueue(workItem);
@@ -100,6 +106,29 @@ public sealed class SpeechQueueService
                 AppLogService.Info(
                     $"Speech started. voice={workItem.VoiceName}, format={EdgeTtsClient.CurrentOutputFormat}, rate={workItem.Rate}, volume={workItem.Volume.ToString("0.00", CultureInfo.InvariantCulture)}, length={workItem.Text.Length}");
                 var filePath = await EnsureSpeechCacheAsync(workItem, cts.Token);
+                var duration = AudioPlaybackService.TryGetDuration(filePath);
+                if (duration is not null && workItem.DurationAvailable is not null)
+                {
+                    try
+                    {
+                        workItem.DurationAvailable(duration.Value);
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogService.Error("Speech duration callback failed", ex);
+                    }
+                }
+                else if (duration is null)
+                {
+                    try
+                    {
+                        workItem.SpeechFailed?.Invoke();
+                    }
+                    catch (Exception callbackError)
+                    {
+                        AppLogService.Error("Speech duration fallback callback failed", callbackError);
+                    }
+                }
                 await _audioPlaybackService.PlayAsync(filePath, workItem.Volume, cts.Token);
                 AppLogService.Info("Speech completed.");
             }
@@ -112,6 +141,14 @@ public sealed class SpeechQueueService
             {
                 LastError = ex.Message;
                 AppLogService.Error("Speech failed", ex);
+                try
+                {
+                    workItem.SpeechFailed?.Invoke();
+                }
+                catch (Exception callbackError)
+                {
+                    AppLogService.Error("Speech failure callback failed", callbackError);
+                }
             }
             finally
             {
@@ -406,7 +443,9 @@ public sealed class SpeechQueueService
         string Text,
         string VoiceName,
         int Rate,
-        float Volume);
+        float Volume,
+        Action<TimeSpan>? DurationAvailable,
+        Action? SpeechFailed);
 
     private sealed record CacheEntry(
         string Path,

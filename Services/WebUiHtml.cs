@@ -59,6 +59,33 @@ public static class WebUiHtml
     }
     button.secondary:hover { background: #dbe3ee; }
     button.danger { background: var(--danger); }
+    .send-button {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      background: linear-gradient(110deg, var(--teal-dark), var(--teal), #22d3ee, var(--teal));
+      background-size: 240% 100%;
+      box-shadow: 0 8px 18px rgba(8, 127, 140, .22);
+      transition: transform .16s ease, box-shadow .16s ease;
+      animation: sendGradient 7s ease-in-out infinite;
+    }
+    .send-button::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(100deg, transparent 18%, rgba(255, 255, 255, .34) 48%, transparent 78%);
+      transform: translateX(-120%);
+      transition: transform .45s ease;
+    }
+    .send-button:hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(8, 127, 140, .28); }
+    .send-button:hover::after { transform: translateX(120%); }
+    .send-button.sending { cursor: progress; animation-duration: 1.2s; }
+    .send-button.sending::after { transform: translateX(120%); transition-duration: 1.2s; }
+    @keyframes sendGradient {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
     input[type="text"], input[type="password"], input[type="number"], textarea, select {
       width: 100%;
       border: 1px solid var(--line);
@@ -375,21 +402,71 @@ public static class WebUiHtml
       background: var(--teal);
     }
     .toggle-block { align-content: end; }
+    .app-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      min-width: 0;
+    }
+    .app-actions button { white-space: nowrap; }
+    .page-view { display: none; }
+    .page-view.active { display: block; }
+    .layout.shout-layout,
+    .layout.single-page { grid-template-columns: 1fr; }
+    .page-links {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+      padding: 4px 2px 0;
+    }
+    .page-link {
+      min-height: 34px;
+      padding: 7px 10px;
+      color: #155e75;
+      background: transparent;
+      border: 1px solid transparent;
+      font-size: 13px;
+    }
+    .page-link:hover,
+    .page-link.active {
+      color: var(--teal-dark);
+      background: #e6f7f8;
+      border-color: #b9e1e5;
+    }
+    .debug-settings {
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+    }
+    .debug-settings > summary {
+      cursor: pointer;
+      color: #155e75;
+      font-weight: 800;
+    }
+    .debug-settings-body { padding-top: 14px; }
+    .settings-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .settings-actions button { width: auto; }
+    .settings-file { display: none; }
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; }
-      /* Put the high-frequency shout workflow before status/account details on phones. */
-      .layout > section { order: -1; }
-      .layout > aside { order: 1; }
       .grid-3 { grid-template-columns: 1fr; }
       .user-row { grid-template-columns: 1fr; }
-      .topbar { align-items: flex-start; flex-direction: column; }
+      .topbar { align-items: stretch; flex-direction: column; gap: 12px; }
+      .app-actions { justify-content: stretch; }
+      .app-actions .status-pill { flex: 1 1 auto; }
     }
     @media (max-width: 620px) {
       .shell { width: min(100% - 20px, 1180px); padding-top: 16px; }
       .grid-2 { grid-template-columns: 1fr; }
       .panel-body { padding: 14px; }
       textarea { min-height: 160px; }
-      button { width: 100%; }
+      .app-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; }
+      .app-actions .status-pill { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+      .app-actions button { width: auto; padding-inline: 10px; }
+      .page-links { justify-content: stretch; }
+      .page-link { flex: 1 1 0; }
       .tabs button { width: auto; }
     }
   </style>
@@ -443,19 +520,20 @@ public static class WebUiHtml
           <div class="subtle" id="userLine">未登录</div>
         </div>
       </div>
-      <div class="row">
+      <div class="app-actions">
         <span class="status-pill"><span class="dot" id="serverDot"></span><span id="serverStatus">读取状态</span></span>
         <button class="secondary" id="refreshButton" type="button">刷新</button>
         <button class="secondary" id="logoutButton" type="button">退出登录</button>
       </div>
     </header>
 
-    <main class="layout">
-      <aside class="stack">
-        <section class="panel">
+    <main id="layout" class="layout shout-layout">
+      <aside id="detailsAside" class="stack">
+        <section id="statusPanel" class="panel hidden">
           <div class="panel-header"><h2>服务状态</h2></div>
           <div class="panel-body stack">
             <div class="meta-list">
+              <div><span>状态</span><strong id="statusPageText">-</strong></div>
               <div><span>端口</span><strong id="portText">-</strong></div>
               <div><span>语音后端</span><strong id="speechBackendText">-</strong></div>
               <div><span>日志文件</span><strong id="logPathText">-</strong></div>
@@ -464,7 +542,7 @@ public static class WebUiHtml
           </div>
         </section>
 
-        <section class="panel">
+        <section id="accountPanel" class="panel hidden">
           <div class="panel-header"><h2>账户</h2></div>
           <div class="panel-body stack">
             <div class="meta-list">
@@ -486,97 +564,74 @@ public static class WebUiHtml
         </section>
       </aside>
 
-      <section class="stack">
+      <section id="mainContent" class="stack">
         <section class="panel">
           <div class="panel-header">
-            <h2>喊话</h2>
-            <div class="tabs">
-              <button id="tabShout" class="tab active" type="button">发送</button>
-              <button id="tabUsers" class="tab hidden" type="button">用户</button>
-            </div>
+            <h2 id="contentTitle">喊话</h2>
           </div>
           <div id="shoutPanel" class="panel-body">
             <form id="shoutForm" class="stack">
-              <div class="grid-2">
-                <div>
-                  <label for="title">标题</label>
-                  <input id="title" type="text" value="OpenRemoteShouter" maxlength="60">
-                </div>
-                <div>
-                  <label for="voiceName">EdgeTTS 说话人</label>
-                  <select id="voiceName"></select>
-                </div>
-              </div>
-
               <div>
                 <label for="message">内容</label>
                 <textarea id="message" maxlength="3000" required autofocus></textarea>
               </div>
-
-              <div class="grid-3">
-                <div>
-                  <label>显示方式</label>
-                  <div class="segmented">
-                    <input type="radio" id="modeFullscreen" name="mode" value="fullscreen" checked>
-                    <label for="modeFullscreen">全屏</label>
-                    <input type="radio" id="modePopup" name="mode" value="popup">
-                    <label for="modePopup">弹窗</label>
-                  </div>
-                </div>
-                <div>
-                  <label for="theme">显示色调</label>
-                  <div class="theme-row">
-                    <span id="themeSwatch" class="swatch cyan"></span>
-                    <select id="theme">
-                      <option value="cyan">青色</option>
-                      <option value="blue">蓝色</option>
-                      <option value="green">绿色</option>
-                      <option value="amber">琥珀</option>
-                      <option value="rose">玫瑰</option>
-                      <option value="violet">紫色</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="stack toggle-block">
-                  <label class="switch"><input id="topmost" type="checkbox" checked> 置顶显示</label>
-                  <label class="switch"><input id="speechEnabled" type="checkbox" checked> 语音播报</label>
-                </div>
-              </div>
-
-              <div class="grid-3">
-                <div>
-                  <label for="durationSeconds">自动关闭</label>
-                  <div class="range-line">
-                    <input id="durationSeconds" type="range" min="0" max="300" step="5" value="10">
-                    <span id="durationValue" class="range-value">10 秒</span>
-                  </div>
-                </div>
-                <div>
-                  <label for="speechRate">语速</label>
-                  <div class="range-line">
-                    <input id="speechRate" type="range" min="-100" max="100" step="5" value="0">
-                    <span id="rateValue" class="range-value">0%</span>
-                  </div>
-                </div>
-                <div>
-                  <label for="speechVolume">音量</label>
-                  <div class="range-line">
-                    <input id="speechVolume" type="range" min="0" max="1" step="0.05" value="1">
-                    <span id="volumeValue" class="range-value">100%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="row">
-                <button type="submit">发送喊话</button>
-                <button class="secondary" type="button" id="closeButton">关闭当前显示</button>
-              </div>
+              <button id="sendButton" class="send-button" type="submit">发送</button>
               <div id="result" class="notice hidden" role="status" aria-live="polite"></div>
+
+              <details id="debugSettings" class="debug-settings">
+                <summary>调试设置</summary>
+                <div class="debug-settings-body stack">
+                  <div>
+                    <label for="voiceName">EdgeTTS 说话人</label>
+                    <select id="voiceName"></select>
+                  </div>
+                  <div>
+                    <div>
+                      <label for="theme">主题色</label>
+                      <div class="theme-row">
+                        <span id="themeSwatch" class="swatch cyan"></span>
+                        <select id="theme">
+                          <option value="cyan">青色</option>
+                          <option value="blue">蓝色</option>
+                          <option value="green">绿色</option>
+                          <option value="amber">琥珀</option>
+                          <option value="rose">玫瑰</option>
+                          <option value="violet">紫色</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="grid-3">
+                    <label class="switch"><input id="topmost" type="checkbox" checked> 置顶显示</label>
+                    <label class="switch"><input id="speechEnabled" type="checkbox" checked> 语音播报</label>
+                    <div>
+                      <label for="speechRate">语速</label>
+                      <div class="range-line">
+                        <input id="speechRate" type="range" min="-100" max="100" step="5" value="0">
+                        <span id="rateValue" class="range-value">0%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label for="speechVolume">音量</label>
+                    <div class="range-line">
+                      <input id="speechVolume" type="range" min="0" max="1" step="0.05" value="1">
+                      <span id="volumeValue" class="range-value">100%</span>
+                    </div>
+                  </div>
+                  <div class="settings-actions">
+                    <button class="secondary" type="button" id="closeButton">关闭当前显示</button>
+                    <button class="secondary" type="button" id="exportSettingsButton">导出设置</button>
+                    <button class="secondary" type="button" id="importSettingsButton">导入设置</button>
+                    <input id="settingsImportFile" class="settings-file" type="file" accept="application/json,.json">
+                  </div>
+                </div>
+              </details>
             </form>
           </div>
 
           <div id="usersPanel" class="panel-body hidden">
-            <div class="stack">
+            <div id="adminUsersContent" class="stack admin-only">
               <form id="createUserForm" class="grid-3">
                 <div>
                   <label for="newUsernameInput">用户名</label>
@@ -599,10 +654,24 @@ public static class WebUiHtml
         </section>
       </section>
     </main>
+    <nav id="pageLinks" class="page-links" aria-label="页面导航">
+      <button class="page-link active" data-page="shout" type="button">喊话</button>
+      <button class="page-link" data-page="users" type="button">用户管理</button>
+      <button class="page-link" data-page="status" type="button">服务状态</button>
+    </nav>
   </div>
 
   <script nonce="{{nonce}}">
-    const state = { user: null, csrfToken: null, setupRequired: false, remoteSetupEnabled: false, authUnavailable: false, users: [], voices: [] };
+    const defaultSettings = {
+      mode: 'fullscreen',
+      theme: 'cyan',
+      topmost: true,
+      speechEnabled: true,
+      voiceName: 'zh-CN-XiaoyiNeural',
+      speechRate: 0,
+      speechVolume: 1
+    };
+    const state = { user: null, csrfToken: null, setupRequired: false, remoteSetupEnabled: false, authUnavailable: false, users: [], voices: [], settings: { ...defaultSettings }, currentPage: 'shout' };
     const $ = id => document.getElementById(id);
 
     async function api(path, options = {}) {
@@ -697,10 +766,13 @@ public static class WebUiHtml
       $('userLine').textContent = `${state.user.displayName} · ${state.user.username}`;
       $('currentUserText').textContent = state.user.displayName;
       $('currentRoleText').textContent = state.user.isAdmin ? '管理员' : '普通用户';
-      $('tabUsers').classList.toggle('hidden', !state.user.isAdmin);
+      $('adminUsersContent').classList.toggle('hidden', !state.user.isAdmin);
+      $('pageLinks').querySelector('[data-page="users"]').classList.toggle('hidden', !state.user.isAdmin);
+      loadTeacherSettings();
       try {
         await Promise.all([loadStatus(), loadVoices()]);
         if (state.user.isAdmin) await loadUsers();
+        setPage(state.currentPage);
       } catch (error) {
         if (error.status === 401) {
           forceLogin();
@@ -715,6 +787,7 @@ public static class WebUiHtml
       try {
         const status = await api('/api/status');
         $('serverStatus').textContent = status.isRunning ? '运行中' : '已停止';
+        $('statusPageText').textContent = status.isRunning ? '运行中' : '已停止';
         $('serverDot').classList.toggle('ok', status.isRunning);
         $('portText').textContent = status.port;
         $('speechBackendText').textContent = status.speechBackend;
@@ -732,6 +805,7 @@ public static class WebUiHtml
       } catch (error) {
         if (error.status === 401) return forceLogin();
         $('serverStatus').textContent = '状态异常';
+        $('statusPageText').textContent = '状态异常';
         $('serverDot').classList.remove('ok');
       }
     }
@@ -744,8 +818,13 @@ public static class WebUiHtml
         const option = document.createElement('option');
         option.value = voice.shortName;
         option.textContent = voice.shortName.replace('zh-CN-', '').replace('Neural', '');
-        if (voice.shortName === 'zh-CN-XiaoyiNeural') option.selected = true;
+        option.selected = voice.shortName === state.settings.voiceName;
         $('voiceName').appendChild(option);
+      }
+      if (!state.voices.some(voice => voice.shortName === state.settings.voiceName)) {
+        state.settings.voiceName = state.voices[0]?.shortName || defaultSettings.voiceName;
+        $('voiceName').value = state.settings.voiceName;
+        saveTeacherSettings();
       }
     }
 
@@ -791,7 +870,28 @@ public static class WebUiHtml
     function forceLogin() {
       state.user = null;
       state.csrfToken = null;
+      state.currentPage = 'shout';
       renderShell();
+    }
+
+    function setPage(page) {
+      if (page === 'users' && !state.user?.isAdmin) page = 'shout';
+      state.currentPage = page;
+      const isShout = page === 'shout';
+      const isUsers = page === 'users';
+      const isStatus = page === 'status';
+      $('layout').classList.toggle('shout-layout', isShout);
+      $('layout').classList.toggle('single-page', isStatus);
+      $('detailsAside').classList.toggle('hidden', isShout);
+      $('mainContent').classList.toggle('hidden', isStatus);
+      $('shoutPanel').classList.toggle('hidden', !isShout);
+      $('usersPanel').classList.toggle('hidden', !isUsers);
+      $('statusPanel').classList.toggle('hidden', !isStatus);
+      $('accountPanel').classList.toggle('hidden', !isUsers);
+      $('contentTitle').textContent = isUsers ? '用户管理' : '喊话';
+      document.querySelectorAll('.page-link').forEach(button => {
+        button.classList.toggle('active', button.dataset.page === page);
+      });
     }
 
     function escapeHtml(value) {
@@ -799,9 +899,76 @@ public static class WebUiHtml
     }
 
     function syncRanges() {
-      $('durationValue').textContent = Number($('durationSeconds').value) === 0 ? '手动' : `${$('durationSeconds').value} 秒`;
       $('rateValue').textContent = `${$('speechRate').value}%`;
       $('volumeValue').textContent = `${Math.round(Number($('speechVolume').value) * 100)}%`;
+    }
+
+    function getSettingsCookie(username) {
+      if (!username) return {};
+      const cookieName = `ors_teacher_settings_${encodeURIComponent(username)}`;
+      const entry = document.cookie.split('; ').find(item => item.startsWith(`${cookieName}=`));
+      if (!entry) return {};
+      try { return JSON.parse(decodeURIComponent(entry.slice(entry.indexOf('=') + 1))) || {}; }
+      catch (_) { return {}; }
+    }
+
+    function saveTeacherSettings() {
+      if (!state.user) return;
+      const cookieName = `ors_teacher_settings_${encodeURIComponent(state.user.username)}`;
+      document.cookie = `${cookieName}=${encodeURIComponent(JSON.stringify(state.settings))}; Max-Age=31536000; Path=/; SameSite=Lax`;
+    }
+
+    function applySettingsToControls() {
+      const settings = state.settings;
+      $('theme').value = settings.theme;
+      $('themeSwatch').className = `swatch ${settings.theme}`;
+      $('topmost').checked = settings.topmost;
+      $('speechEnabled').checked = settings.speechEnabled;
+      $('voiceName').value = settings.voiceName;
+      $('speechRate').value = settings.speechRate;
+      $('speechVolume').value = settings.speechVolume;
+      syncRanges();
+    }
+
+    function loadTeacherSettings() {
+      const saved = state.user ? getSettingsCookie(state.user.username) : null;
+      state.settings = normalizeSettings(saved || defaultSettings);
+      applySettingsToControls();
+    }
+
+    function normalizeSettings(value) {
+      const rate = Number(value.speechRate);
+      const volume = Number(value.speechVolume);
+      return {
+        ...defaultSettings,
+        mode: 'fullscreen',
+        theme: ['cyan', 'blue', 'green', 'amber', 'rose', 'violet'].includes(value.theme) ? value.theme : defaultSettings.theme,
+        topmost: value.topmost !== false,
+        speechEnabled: value.speechEnabled !== false,
+        voiceName: typeof value.voiceName === 'string' ? value.voiceName : defaultSettings.voiceName,
+        speechRate: Number.isFinite(rate) ? Math.max(-100, Math.min(100, rate)) : defaultSettings.speechRate,
+        speechVolume: Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : defaultSettings.speechVolume
+      };
+    }
+
+    function captureTeacherSettings() {
+      state.settings = {
+        mode: 'fullscreen',
+        theme: $('theme').value,
+        topmost: $('topmost').checked,
+        speechEnabled: $('speechEnabled').checked,
+        voiceName: $('voiceName').value || defaultSettings.voiceName,
+        speechRate: Number($('speechRate').value),
+        speechVolume: Number($('speechVolume').value)
+      };
+      saveTeacherSettings();
+    }
+
+    function importTeacherSettings(value) {
+      if (!value || typeof value !== 'object') throw new Error('设置文件格式不正确。');
+      state.settings = normalizeSettings(value);
+      applySettingsToControls();
+      saveTeacherSettings();
     }
 
     $('authForm').addEventListener('submit', async event => {
@@ -867,11 +1034,11 @@ public static class WebUiHtml
       event.preventDefault();
       hideNotice($('result'));
       const payload = {
-        title: $('title').value,
+        title: '',
         message: $('message').value,
-        mode: document.querySelector('input[name="mode"]:checked').value,
+        mode: 'fullscreen',
         theme: $('theme').value,
-        durationSeconds: Number($('durationSeconds').value),
+        durationSeconds: 10,
         topmost: $('topmost').checked,
         speechEnabled: $('speechEnabled').checked,
         voiceName: $('voiceName').value,
@@ -879,10 +1046,17 @@ public static class WebUiHtml
         speechVolume: Number($('speechVolume').value)
       };
       try {
+        $('sendButton').classList.add('sending');
+        $('sendButton').disabled = true;
+        $('sendButton').textContent = '发送中...';
         await api('/api/shout', { method: 'POST', body: JSON.stringify(payload) });
-        showNotice($('result'), '已发送。');
+        showNotice($('result'), '已发送，显示端正在播放。');
       } catch (error) {
         showNotice($('result'), error.message, true);
+      } finally {
+        $('sendButton').classList.remove('sending');
+        $('sendButton').disabled = false;
+        $('sendButton').textContent = '发送';
       }
     });
 
@@ -910,30 +1084,40 @@ public static class WebUiHtml
       await loadUsers();
     });
 
-    $('tabShout').addEventListener('click', () => {
-      $('tabShout').classList.add('active');
-      $('tabUsers').classList.remove('active');
-      $('shoutPanel').classList.remove('hidden');
-      $('usersPanel').classList.add('hidden');
+    document.querySelectorAll('.page-link').forEach(button => {
+      button.addEventListener('click', () => setPage(button.dataset.page));
     });
 
-    $('tabUsers').addEventListener('click', () => {
-      $('tabUsers').classList.add('active');
-      $('tabShout').classList.remove('active');
-      $('usersPanel').classList.remove('hidden');
-      $('shoutPanel').classList.add('hidden');
-    });
-
-    for (const id of ['durationSeconds', 'speechRate', 'speechVolume']) {
+    for (const id of ['speechRate', 'speechVolume', 'theme', 'topmost', 'speechEnabled', 'voiceName']) {
       $(id).addEventListener('input', syncRanges);
+      $(id).addEventListener('change', captureTeacherSettings);
     }
-    $('theme').addEventListener('change', () => {
-      $('themeSwatch').className = `swatch ${$('theme').value}`;
+    $('exportSettingsButton').addEventListener('click', () => {
+      captureTeacherSettings();
+      const blob = new Blob([JSON.stringify(state.settings, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `openremoteshouter-${state.user?.username || 'teacher'}-settings.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+    $('importSettingsButton').addEventListener('click', () => $('settingsImportFile').click());
+    $('settingsImportFile').addEventListener('change', async event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        importTeacherSettings(JSON.parse(await file.text()));
+        showNotice($('result'), '设置已导入。');
+      } catch (error) {
+        showNotice($('result'), error.message || '设置导入失败。', true);
+      } finally {
+        event.target.value = '';
+      }
     });
 
     (async function boot() {
       syncRanges();
-      $('themeSwatch').className = `swatch ${$('theme').value}`;
       await loadAuthState();
     })();
   </script>

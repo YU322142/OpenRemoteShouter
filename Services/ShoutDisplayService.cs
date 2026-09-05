@@ -53,7 +53,9 @@ public sealed class ShoutDisplayService
                     message.Message,
                     message.VoiceName,
                     message.SpeechRate,
-                    message.SpeechVolume);
+                    message.SpeechVolume,
+                    duration => Dispatcher.UIThread.Post(() => window.SetDisplayDuration(duration)),
+                    () => Dispatcher.UIThread.Post(() => window.SetDisplayDuration(TimeSpan.FromSeconds(10))));
             }
         }).GetTask();
     }

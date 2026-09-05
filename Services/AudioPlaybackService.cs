@@ -110,6 +110,22 @@ public sealed class AudioPlaybackService
         return "No player found. Install pulseaudio-utils(paplay), alsa-utils(aplay), ffmpeg(ffplay), or mpv.";
     }
 
+    public static TimeSpan? TryGetDuration(string filePath)
+    {
+        try
+        {
+            using WaveStream reader = Path.GetExtension(filePath).Equals(".mp3", StringComparison.OrdinalIgnoreCase)
+                ? new Mp3FileReader(filePath)
+                : new WaveFileReader(filePath);
+            return reader.TotalTime > TimeSpan.Zero ? reader.TotalTime : null;
+        }
+        catch (Exception ex)
+        {
+            AppLogService.Error("Unable to read synthesized audio duration", ex);
+            return null;
+        }
+    }
+
     private static string? FindOnPath(string command)
     {
         var pathValue = Environment.GetEnvironmentVariable("PATH");

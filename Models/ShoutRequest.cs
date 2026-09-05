@@ -45,15 +45,15 @@ public sealed class ShoutRequest
             return (false, "\u97f3\u91cf\u5fc5\u987b\u662f\u6709\u9650\u6570\u5b57\u3002", null);
         }
 
-        var normalizedMode = (Mode ?? "fullscreen").Trim().ToLowerInvariant();
-        var mode = normalizedMode switch
-        {
-            "fullscreen" or "full" or "screen" or "\u5168\u5c4f" => ShoutDisplayMode.Fullscreen,
-            "popup" or "window" or "dialog" or "\u5f39\u7a97" => ShoutDisplayMode.Popup,
-            _ => ShoutDisplayMode.Fullscreen
-        };
+        // Windowed display was retired. Keep accepting the legacy field so old
+        // clients remain wire-compatible, but always render the announcement
+        // as a full-screen surface.
+        var mode = ShoutDisplayMode.Fullscreen;
 
-        var duration = Math.Clamp(DurationSeconds, 0, 3600);
+        // The display lifetime is controlled by the actual synthesized audio
+        // duration. Keep a ten-second floor for silent/failed TTS requests;
+        // callers can no longer override it with an arbitrary timer.
+        var duration = 10;
         var title = string.IsNullOrWhiteSpace(Title) ? "\u8fdc\u7a0b\u558a\u8bdd" : Title.Trim();
         if (title.Length > MaxTitleLength)
         {
