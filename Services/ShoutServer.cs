@@ -477,13 +477,19 @@ public sealed class ShoutServer
 
         app.MapPost("/api/shout", async (HttpRequest request) =>
         {
-            var error = RequireSession(request.HttpContext, out _, requireCsrf: true);
+            var error = RequireSession(request.HttpContext, out var session, requireCsrf: true);
             if (error is not null)
             {
                 return error;
             }
 
             var shoutRequest = await ReadRequestAsync(request);
+            // Use a ten-second floor while TTS is being synthesized. The
+            // display is extended to the actual audio duration afterward.
+            shoutRequest.DurationSeconds = 10;
+            // The display title is derived from the authenticated account so
+            // clients cannot impersonate another sender by submitting a title.
+            shoutRequest.Title = $"（{session!.User.DisplayName}）发送了一条消息";
             var parsed = shoutRequest.ToMessage();
 
             if (!parsed.IsValid || parsed.Message is null)
@@ -1172,17 +1178,10 @@ public sealed class ShoutServer
   <main>
     <h1>OpenRemoteShouter</h1>
     <form id="shoutForm">
-      <label for="title">&#x6807;&#x9898;</label>
-      <input id="title" name="title" type="text" value="OpenRemoteShouter" maxlength="60">
-
       <label for="message">&#x5185;&#x5bb9;</label>
       <textarea id="message" name="message" maxlength="3000" required autofocus></textarea>
 
-      <label>&#x663e;&#x793a;&#x65b9;&#x5f0f;</label>
-      <div class="row">
-        <span class="choice"><input type="radio" id="modeFullscreen" name="mode" value="fullscreen" checked><label for="modeFullscreen">&#x5168;&#x5c4f;&#x7f6e;&#x9876;</label></span>
-        <span class="choice"><input type="radio" id="modePopup" name="mode" value="popup"><label for="modePopup">&#x5f39;&#x7a97;&#x663e;&#x793a;</label></span>
-      </div>
+      <input type="hidden" name="mode" value="fullscreen">
 
       <label for="theme">&#x663e;&#x793a;&#x8272;&#x8c03;</label>
       <select id="theme" name="theme">
@@ -1193,9 +1192,6 @@ public sealed class ShoutServer
         <option value="rose">&#x73ab;&#x7470;&#x8272;</option>
         <option value="violet">&#x7d2b;&#x8272;</option>
       </select>
-
-      <label for="durationSeconds">&#x81ea;&#x52a8;&#x5173;&#x95ed;&#x5012;&#x8ba1;&#x65f6;&#xff0c;0 &#x8868;&#x793a;&#x4e0d;&#x81ea;&#x52a8;&#x5173;&#x95ed;</label>
-      <input id="durationSeconds" name="durationSeconds" type="number" min="0" max="3600" value="10">
 
       <label class="choice"><input id="topmost" name="topmost" type="checkbox" checked> &#x7a97;&#x53e3;&#x7f6e;&#x9876;</label>
 
@@ -1236,11 +1232,11 @@ public sealed class ShoutServer
       event.preventDefault();
       const data = new FormData(form);
       const payload = {
-        title: data.get('title'),
+        title: '',
         message: data.get('message'),
-        mode: data.get('mode'),
+        mode: 'fullscreen',
         theme: data.get('theme'),
-        durationSeconds: Number(data.get('durationSeconds')),
+        durationSeconds: 10,
         topmost: data.get('topmost') === 'on',
         speechEnabled: data.get('speechEnabled') === 'on',
         voiceName: data.get('voiceName'),

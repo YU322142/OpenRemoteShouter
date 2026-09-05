@@ -2,7 +2,7 @@
 
 [English](README.en.md) | [简体中文](README.md)
 
-OpenRemoteShouter is a local-network remote announcement tool. It starts a local web service on a computer so that other devices can send text through a browser or HTTP API. The target computer then shows a full-screen or windowed notice and can read it aloud with EdgeTTS.
+OpenRemoteShouter is a local-network remote announcement tool. It starts a local web service on a computer so that other devices can send text through a browser or HTTP API. The target computer then shows a Fluent-style animated full-screen notice and can read it aloud with EdgeTTS.
 
 <div align="center">
 
@@ -16,8 +16,8 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
 
 - **Dedicated LoongArch64 Old World ABI 1.0 package.**
 - Remote announcements through a LAN web interface, listening on port `21212` by default.
-- Full-screen topmost display or a regular popup window.
-- Automatic close countdown; `0` means the notice must be closed manually.
+- Theme-driven animated full-screen display with nonlinear title and message entrance.
+- Display time is derived from the actual TTS audio file duration, with a ten-second minimum.
 - Chinese speech playback with EdgeTTS.
 - Web forms, JSON API, and form POST support.
 - Multi-architecture builds for Windows, Linux, and macOS.
@@ -28,7 +28,7 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
 
 ![1](screenshots/1.png)
 
-#### Window display
+#### Animated full-screen display
 
 ![2](screenshots/2.png)
 
@@ -49,6 +49,8 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
    - Portable package: install the .NET 8 Runtime first, then run `run.sh` or `run.bat`.
 3. Open the console window or tray menu and copy the displayed access address.
 4. By default, the service listens only on the local loopback interface. You can initialize it locally, or explicitly configure a trusted relay for remote first-run setup as described below.
+
+After login, the WebUI opens on the announcement page and shows only the message field and Send button. Infrequent options such as theme, topmost behavior, speech, voice, rate, volume, and closing the current display are under Debug settings. Each teacher's settings are stored in that teacher's local browser Cookie and can be exported to JSON or imported in another browser. The selected theme is applied to the target animated display window, with black or white text chosen automatically from the background brightness. Manual auto-close timing is no longer exposed: with speech enabled, the window uses the actual TTS file duration and keeps it visible for at least 10 seconds; with speech disabled or synthesis failure, it remains visible for 10 seconds.
 
 If remote access still does not work, check that the firewall allows port `21212` and that the certificate and listener mode are configured correctly.
 
@@ -439,10 +441,10 @@ Field reference:
 
 | Field | Description |
 | --- | --- |
-| `title` | Display title; the default title is used when empty. |
+| `title` | Retained for old clients; the server displays “(display name) sent a message”. |
 | `message` | Required announcement text. |
-| `mode` | `fullscreen` or `popup`. |
-| `durationSeconds` | Automatic close delay, from `0` to `3600`. |
+| `mode` | Retained for old clients; display is always rendered as `fullscreen`. |
+| `durationSeconds` | Retained for old clients; actual display time follows TTS audio duration with a ten-second minimum. |
 | `topmost` | Whether the window stays on top. |
 | `speechEnabled` | Whether to read the announcement aloud. |
 | `voiceName` | EdgeTTS voice, for example `zh-CN-XiaoyiNeural`. |

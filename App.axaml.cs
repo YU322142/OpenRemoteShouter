@@ -147,7 +147,7 @@ public partial class App : Application
         await _displayService.ShowAsync(new ShoutMessage(
             "\u672c\u673a\u6d4b\u8bd5",
             "\u8fd9\u662f\u4e00\u6761 OpenRemoteShouter \u6d4b\u8bd5\u6d88\u606f\u3002",
-            ShoutDisplayMode.Popup,
+            ShoutDisplayMode.Fullscreen,
             10,
             true,
             true,
