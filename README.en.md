@@ -34,13 +34,11 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
 
 ![2](screenshots/2.png)
 
-#### Full-screen display
-
-![3](screenshots/3.png)
-
 #### Web announcement interface
 
-![4](screenshots/4.jpeg)
+![3](screenshots/3.png)
+![4](screenshots/4.png)
+![5](screenshots/5.png)
 
 ## Usage
 

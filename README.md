@@ -34,11 +34,11 @@ OpenRemoteShouter 是一个局域网远程喊话工具。它在电脑上启动�
 #### 动态全屏显示
 ![2](screenshots/2.png)
 
-#### 全屏显示
-![3](screenshots/3.png)
 
 #### 网页喊话界面
-![4](screenshots/4.jpeg)
+![3](screenshots/3.png)
+![4](screenshots/4.png)
+![5](screenshots/5.png)
 
 
 ## 使用
