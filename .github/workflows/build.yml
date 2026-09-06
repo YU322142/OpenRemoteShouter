@@ -570,8 +570,21 @@ jobs:
           unzip -q "$archive" -d release-notes
           test -s "release-notes/${APP_NAME}-all-platforms/SHA256SUMS.md"
           test -s "CHANGELOG.md"
+          release_version="${GITHUB_REF_NAME#refs/tags/}"
+          awk -v version="$release_version" '
+            !found {
+              if ($0 ~ "^## " version "([[:space:]-]|$)") {
+                found = 1
+                print
+              }
+              next
+            }
+            /^## / { exit }
+            { print }
+          ' CHANGELOG.md > "release-notes/${APP_NAME}-all-platforms/CHANGELOG_RELEASE.md"
+          test -s "release-notes/${APP_NAME}-all-platforms/CHANGELOG_RELEASE.md"
           {
-            cat "CHANGELOG.md"
+            cat "release-notes/${APP_NAME}-all-platforms/CHANGELOG_RELEASE.md"
             printf '\n\n'
             cat "release-notes/${APP_NAME}-all-platforms/SHA256SUMS.md"
           } > "release-notes/${APP_NAME}-all-platforms/RELEASE_BODY.md"
