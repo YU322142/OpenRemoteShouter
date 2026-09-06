@@ -5,6 +5,7 @@ namespace RemoteShouter.Models;
 public sealed record AccountUser(
     string Username,
     string DisplayName,
+    string Theme,
     bool IsAdmin,
     bool IsEnabled,
     DateTimeOffset CreatedAt,
@@ -45,13 +46,19 @@ public sealed record CreateUserRequest(
     string? Username,
     string? DisplayName,
     string? Password,
+    string? Theme,
     bool IsAdmin);
 
 public sealed record UpdateUserRequest(
     string? DisplayName,
     string? Password,
+    string? Theme,
     bool? IsAdmin,
     bool? IsEnabled);
+
+public sealed record UpdateProfileRequest(
+    string? DisplayName,
+    string? Theme);
 
 public sealed record ChangePasswordRequest(
     string? CurrentPassword,

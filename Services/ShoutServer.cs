@@ -25,6 +25,8 @@ public sealed class ShoutServer
     private const string TrustedProxyIpsEnvironmentVariable = "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS";
     private const string AllowTrustedProxySetupEnvironmentVariable = "OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP";
     private const string TrustedProxySetupTokenEnvironmentVariable = "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN";
+    private const string AllowLanEnvironmentVariable = "OPEN_REMOTE_SHOUTER_ALLOW_LAN";
+    private const string LegacyAllowDirectIpEnvironmentVariable = "OPEN_REMOTE_SHOUTER_ALLOW_DIRECT_IP";
     private const string TrustedProxySetupTokenHeader = "X-OpenRemoteShouter-Setup-Token";
     private const int MaxTrustedProxyAddresses = 32;
     private const int MinTrustedProxySetupTokenBytes = 32;
@@ -37,7 +39,7 @@ public sealed class ShoutServer
     private readonly bool _allowTrustedProxySetup;
     private readonly byte[]? _trustedProxySetupTokenHash;
     private int _trustedProxySetupConsumed;
-    private readonly bool _allowInsecureHttp;
+    private readonly bool _allowLanAccess;
     private WebApplication? _app;
     private string? _lastError;
 
@@ -56,8 +58,7 @@ public sealed class ShoutServer
                 $"{AllowTrustedProxySetupEnvironmentVariable}=1 requires "
                 + $"{TrustedProxyIpsEnvironmentVariable} to contain at least one fixed proxy IP.");
         }
-        _allowInsecureHttp = IsEnvironmentTruthy(
-            Environment.GetEnvironmentVariable("OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP"));
+        _allowLanAccess = ReadLanAccessSetting();
         if (_httpsCertificate is null
             && IsEnvironmentTruthy(Environment.GetEnvironmentVariable("OPEN_REMOTE_SHOUTER_REQUIRE_HTTPS")))
         {
@@ -74,6 +75,11 @@ public sealed class ShoutServer
         AppLogService.LogFilePath,
         _displayService.SpeechError,
         _lastError);
+
+    public bool VerifyAnyAdministratorPassword(string? password)
+    {
+        return _accountService.VerifyAnyAdministratorPassword(password);
+    }
 
     public async Task StartAsync()
     {
@@ -116,23 +122,29 @@ public sealed class ShoutServer
             builder.WebHost.ConfigureKestrel(options =>
             {
                 options.AddServerHeader = false;
-                if (_httpsCertificate is null)
+                if (_allowLanAccess)
                 {
-                    if (_allowInsecureHttp)
+                    if (_httpsCertificate is null)
                     {
                         options.ListenAnyIP(_port);
                     }
                     else
                     {
-                        // Keep an unencrypted development/default instance
-                        // local-only.  LAN exposure must be an explicit opt-in
-                        // or use the HTTPS certificate path below.
-                        options.ListenLocalhost(_port);
+                        options.ListenAnyIP(_port, listenOptions => listenOptions.UseHttps(_httpsCertificate));
                     }
                 }
                 else
                 {
-                    options.ListenAnyIP(_port, listenOptions => listenOptions.UseHttps(_httpsCertificate));
+                    if (_httpsCertificate is null)
+                    {
+                        // Keep the default unencrypted instance local-only.
+                        // LAN exposure must be explicitly enabled.
+                        options.ListenLocalhost(_port);
+                    }
+                    else
+                    {
+                        options.ListenLocalhost(_port, listenOptions => listenOptions.UseHttps(_httpsCertificate));
+                    }
                 }
 
                 // Every endpoint accepts small JSON/form payloads only.  Keep
@@ -249,14 +261,19 @@ public sealed class ShoutServer
             _lastError = null;
             if (_httpsCertificate is null)
             {
-                var scope = _allowInsecureHttp ? "all interfaces" : "loopback only";
+                var scope = _allowLanAccess ? "all interfaces" : "loopback only";
                 AppLogService.Info(
                     $"WARNING: web server is using plaintext HTTP on {scope}. Configure "
                     + "OPEN_REMOTE_SHOUTER_HTTPS_CERT_PATH (and optionally "
                     + "OPEN_REMOTE_SHOUTER_HTTPS_CERT_PASSWORD) before exposing it to an untrusted network."
-                    + (_allowInsecureHttp
-                        ? " OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1 explicitly enables LAN HTTP."
-                        : " Set OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1 only for a deliberate legacy LAN HTTP deployment."));
+                    + (_allowLanAccess
+                        ? $" {AllowLanEnvironmentVariable}=1 explicitly enables direct IP/LAN HTTP."
+                        : $" Set {AllowLanEnvironmentVariable}=1 only for a deliberate LAN deployment."));
+            }
+            else if (_allowLanAccess)
+            {
+                AppLogService.Info(
+                    $"LAN access is enabled by {AllowLanEnvironmentVariable}=1; HTTPS is active.");
             }
             if (_trustedProxyAddresses.Count > 0)
             {
@@ -295,6 +312,28 @@ public sealed class ShoutServer
 
     private void MapRoutes(WebApplication app)
     {
+        app.MapGet("/assets/fluentui-web-components-all.min.js", () =>
+        {
+            var assetPath = Path.Combine(
+                AppContext.BaseDirectory,
+                "Assets",
+                "fluentui-web-components-all.min.js");
+            return File.Exists(assetPath)
+                ? Results.File(assetPath, "text/javascript")
+                : Results.NotFound();
+        });
+
+        app.MapGet("/assets/fluentui-web-light-theme.min.js", () =>
+        {
+            var assetPath = Path.Combine(
+                AppContext.BaseDirectory,
+                "Assets",
+                "fluentui-web-light-theme.min.js");
+            return File.Exists(assetPath)
+                ? Results.File(assetPath, "text/javascript")
+                : Results.NotFound();
+        });
+
         app.MapGet("/", (HttpContext context) =>
         {
             var nonce = context.Items["CspNonce"] as string ?? string.Empty;
@@ -489,7 +528,8 @@ public sealed class ShoutServer
             shoutRequest.DurationSeconds = 10;
             // The display title is derived from the authenticated account so
             // clients cannot impersonate another sender by submitting a title.
-            shoutRequest.Title = $"（{session!.User.DisplayName}）发送了一条消息";
+            shoutRequest.Title = $"{session!.User.DisplayName} 发送了一条消息";
+            shoutRequest.Theme = session.User.Theme;
             var parsed = shoutRequest.ToMessage();
 
             if (!parsed.IsValid || parsed.Message is null)
@@ -527,6 +567,52 @@ public sealed class ShoutServer
                 : ApiError("Admin permission required.", StatusCodes.Status403Forbidden);
         });
 
+        app.MapPut("/api/account/profile", async (HttpContext context) =>
+        {
+            var error = RequireSession(context, out var session, requireCsrf: true);
+            if (error is not null)
+            {
+                return error;
+            }
+
+            var contentGuard = RequireJsonContentType(context);
+            if (contentGuard is not null)
+            {
+                return contentGuard;
+            }
+
+            var parsedRequest = await TryReadJsonAsync<UpdateProfileRequest>(context.Request);
+            if (!parsedRequest.IsValid)
+            {
+                return ApiError("Invalid JSON request.", StatusCodes.Status400BadRequest);
+            }
+
+            var request = parsedRequest.Value ?? new UpdateProfileRequest(null, null);
+            var result = _accountService.UpdateProfile(request, session!.User);
+            return result.Ok
+                ? Results.Json(new { ok = true, user = result.User })
+                : ApiError(result.Error ?? "Profile update failed.", result.StatusCode);
+        });
+
+        app.MapGet("/api/account/themes", (HttpContext context) =>
+        {
+            var error = RequireSession(context, out var session);
+            if (error is not null)
+            {
+                return error;
+            }
+
+            var usedByOthers = new HashSet<string>(
+                _accountService.ListThemesUsedByOthers(session!.User),
+                StringComparer.OrdinalIgnoreCase);
+            var themes = AccountService.ThemeNames.Select(theme => new
+            {
+                value = theme,
+                available = !usedByOthers.Contains(theme)
+            });
+            return Results.Json(new { ok = true, themes });
+        });
+
         app.MapPost("/api/users", async (HttpContext context) =>
         {
             var error = RequireSession(context, out var session, requireAdmin: true, requireCsrf: true);
@@ -547,7 +633,7 @@ public sealed class ShoutServer
                 return ApiError("Invalid JSON request.", StatusCodes.Status400BadRequest);
             }
 
-            var request = parsedRequest.Value ?? new CreateUserRequest(null, null, null, false);
+            var request = parsedRequest.Value ?? new CreateUserRequest(null, null, null, null, false);
             var result = _accountService.CreateUser(request, session!.User);
             return result.Ok
                 ? Results.Json(new { ok = true, user = result.User })
@@ -574,7 +660,7 @@ public sealed class ShoutServer
                 return ApiError("Invalid JSON request.", StatusCodes.Status400BadRequest);
             }
 
-            var request = parsedRequest.Value ?? new UpdateUserRequest(null, null, null, null);
+            var request = parsedRequest.Value ?? new UpdateUserRequest(null, null, null, null, null);
             var result = _accountService.UpdateUser(username, request, session!.User);
             return result.Ok
                 ? Results.Json(new { ok = true, user = result.User })
@@ -930,7 +1016,7 @@ public sealed class ShoutServer
             $"{scheme}://127.0.0.1:{_port}/"
         };
 
-        if (_httpsCertificate is null && !_allowInsecureHttp)
+        if (!_allowLanAccess)
         {
             return urls.ToArray();
         }
@@ -1067,6 +1153,43 @@ public sealed class ShoutServer
                    || value.Equals("true", StringComparison.OrdinalIgnoreCase)
                    || value.Equals("yes", StringComparison.OrdinalIgnoreCase)
                    || value.Equals("on", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool ReadLanAccessSetting()
+    {
+        var explicitLanSetting = ParseEnvironmentBoolean(
+            Environment.GetEnvironmentVariable(AllowLanEnvironmentVariable));
+        if (explicitLanSetting.HasValue)
+        {
+            return explicitLanSetting.Value;
+        }
+
+        // Keep the previous names working for existing launchers and service
+        // files while making OPEN_REMOTE_SHOUTER_ALLOW_LAN the documented API.
+        var legacyDirectIpSetting = ParseEnvironmentBoolean(
+            Environment.GetEnvironmentVariable(LegacyAllowDirectIpEnvironmentVariable));
+        if (legacyDirectIpSetting.HasValue)
+        {
+            return legacyDirectIpSetting.Value;
+        }
+
+        return IsEnvironmentTruthy(
+            Environment.GetEnvironmentVariable("OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP"));
+    }
+
+    private static bool? ParseEnvironmentBoolean(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "1" or "true" or "yes" or "on" or "enable" or "enabled" => true,
+            "0" or "false" or "no" or "off" or "disable" or "disabled" => false,
+            _ => null
+        };
     }
 
     private static string BuildIndexHtml()

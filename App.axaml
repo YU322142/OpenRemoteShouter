@@ -1,8 +1,18 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:styling="clr-namespace:FluentAvalonia.Styling;assembly=FluentAvalonia"
              x:Class="RemoteShouter.App"
              RequestedThemeVariant="Light">
   <Application.Styles>
-    <FluentTheme />
+    <styling:FluentAvaloniaTheme CustomAccentColor="DodgerBlue"
+                                 TextVerticalAlignmentOverrideBehavior="AlwaysEnabled" />
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, Microsoft YaHei, PingFang SC, sans-serif" />
+      <Setter Property="Foreground" Value="#242424" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
   </Application.Styles>
 </Application>

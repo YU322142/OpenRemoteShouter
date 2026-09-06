@@ -82,11 +82,25 @@ public sealed class ShoutRequest
     {
         return (theme ?? DefaultTheme).Trim().ToLowerInvariant() switch
         {
+            "cyan-dark" => "cyan-dark",
             "blue" => "blue",
+            "blue-dark" => "blue-dark",
             "green" => "green",
+            "green-dark" => "green-dark",
             "amber" => "amber",
+            "amber-dark" => "amber-dark",
             "rose" => "rose",
+            "rose-dark" => "rose-dark",
             "violet" => "violet",
+            "violet-dark" => "violet-dark",
+            "indigo" => "indigo",
+            "indigo-dark" => "indigo-dark",
+            "magenta" => "magenta",
+            "magenta-dark" => "magenta-dark",
+            "orange" => "orange",
+            "orange-dark" => "orange-dark",
+            "emerald" => "emerald",
+            "emerald-dark" => "emerald-dark",
             _ => DefaultTheme
         };
     }

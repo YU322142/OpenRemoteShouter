@@ -1,0 +1,7 @@
+OpenRemoteShouter includes the prebuilt browser bundle from
+@fluentui/web-components 3.1.3 and the webLightTheme tokens from
+@fluentui/tokens 1.0.0-alpha.24, Copyright Microsoft Corporation.
+
+The bundle is distributed under the MIT License. The project source and
+license information are available at:
+https://github.com/microsoft/fluentui/tree/master/packages/web-components

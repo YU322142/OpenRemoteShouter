@@ -12,6 +12,19 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
 
 </div>
 
+## 0.1.1.0 release notes (2026-09-06)
+
+This is the complete update since `0.1.0.0`, covering the trusted relay, mobile layout, client UI, account management, and release-engineering work delivered from September 2 through September 6, 2026:
+
+- **Trusted relay and remote setup**: added a fixed TCP-peer allowlist, HTTPS enforcement, a one-time high-entropy setup token, and safe forwarding-header handling. Remote first-run setup is disabled by default and incomplete configuration fails closed at startup.
+- **FRP deployment documentation**: added Windows, Linux, and macOS examples for `frps`, `frpc`, reverse proxies, systemd, launchd, and Task Scheduler, and included trusted-relay variables in the published `run.bat` and `run.sh` launchers.
+- **Mobile experience**: the announcement form is shown first on mobile, with a tighter narrow-screen layout and page order.
+- **Full-screen announcements**: all notices now use the full-screen surface, with more visible nonlinear title and message entrance motion. Display time follows the actual TTS audio duration with a ten-second minimum. After sending, the current display can be cancelled or another announcement can be sent; success feedback floats over the existing page background.
+- **Fluent UI client**: the desktop app now uses FluentAvalonia styling and native controls, centers button content, and includes branded window and tray icons plus the application name in the context menu. The WebUI bundles Fluent UI Web Components locally without a CDN dependency.
+- **Accounts and themes**: display names and themes can be edited, with 20 light/dark themes available. Each account must use a unique theme; administrators cannot remove their own administrator role, disable or delete the current account, and ordinary users do not see user-management content.
+- **Exit protection and network access**: stopping the web service or exiting the app requires the password of any enabled administrator. The new `OPEN_REMOTE_SHOUTER_ALLOW_LAN` setting keeps loopback-only listening by default and enables LAN IP access only when explicitly set to `1`.
+- **Release engineering**: platform packages continue to be published as separate Release assets with `SHA256SUMS.txt`; portable and platform launchers keep trusted relay setup disabled by default.
+
 ## Features
 
 - **Dedicated LoongArch64 Old World ABI 1.0 package.**
@@ -21,6 +34,8 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
 - Chinese speech playback with EdgeTTS.
 - Web forms, JSON API, and form POST support.
 - Multi-architecture builds for Windows, Linux, and macOS.
+- The WebUI bundles Fluent UI Web Components locally; its send and success states use an upward motion, and a successful send can be cancelled immediately.
+- Twenty light/dark theme variants are available for account assignment.
 
 ## Screenshots
 
@@ -51,6 +66,10 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
 4. By default, the service listens only on the local loopback interface. You can initialize it locally, or explicitly configure a trusted relay for remote first-run setup as described below.
 
 After login, the WebUI opens on the announcement page and shows only the message field and Send button. Infrequent options such as theme, topmost behavior, speech, voice, rate, volume, and closing the current display are under Debug settings. Each teacher's settings are stored in that teacher's local browser Cookie and can be exported to JSON or imported in another browser. The selected theme is applied to the target animated display window, with black or white text chosen automatically from the background brightness. Manual auto-close timing is no longer exposed: with speech enabled, the window uses the actual TTS file duration and keeps it visible for at least 10 seconds; with speech disabled or synthesis failure, it remains visible for 10 seconds.
+
+The WebUI controls use a locally bundled Fluent UI Web Components asset and do not depend on an external CDN. After a successful send, a Cancel display button appears and can stop the current full-screen display; the send and success feedback use motion consistent with the client. When creating an administrator or user, the form explicitly reminds you that the display name appears in the client announcement title.
+
+The desktop console and tray menu require the password of any enabled administrator before stopping the web service or exiting the software. The password is used only for this local confirmation and does not create a WebUI session; operating-system-level force termination, such as Task Manager, remains outside the application's control.
 
 If remote access still does not work, check that the firewall allows port `21212` and that the certificate and listener mode are configured correctly.
 
@@ -284,6 +303,8 @@ With a certificate configured, the service provides HTTPS on that port and displ
 
 If compatibility with legacy plaintext LAN deployments is required, explicitly set `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1` to listen on all interfaces. Startup logs continuously warn about this mode. Passwords, session cookies, and CSRF tokens can be sniffed on the network, so this mode should not be used in production.
 
+To enable LAN use, including direct access through the computer's IP address, set `OPEN_REMOTE_SHOUTER_ALLOW_LAN=1` in `run.bat` or `run.sh`. When unset or set to `0`, the service listens only on `localhost` / `127.0.0.1`, even when a certificate is configured. With `1`, it listens on all interfaces. Without a certificate this explicitly exposes plaintext HTTP, so prefer HTTPS or a trusted FRP/Nginx relay. The legacy names `OPEN_REMOTE_SHOUTER_ALLOW_DIRECT_IP` and `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP` remain supported, but new deployments should use `OPEN_REMOTE_SHOUTER_ALLOW_LAN`.
+
 Account data is stored in `accounts.json` under the system user-data directory by default. To choose another data directory:
 
 ```bash
@@ -450,7 +471,7 @@ Field reference:
 | `voiceName` | EdgeTTS voice, for example `zh-CN-XiaoyiNeural`. |
 | `speechRate` | Speech rate, from `-100` to `100`. |
 | `speechVolume` | Volume, from `0.0` to `1.0`. |
-| `theme` | `cyan`, `blue`, `green`, `amber`, `rose`, or `violet`. |
+| `theme` | `cyan`, `cyan-dark`, `blue`, `blue-dark`, `green`, `green-dark`, `amber`, `amber-dark`, `rose`, `rose-dark`, `violet`, `violet-dark`, `indigo`, `indigo-dark`, `magenta`, `magenta-dark`, `orange`, `orange-dark`, `emerald`, or `emerald-dark`. |
 
 ## Build artifacts
 

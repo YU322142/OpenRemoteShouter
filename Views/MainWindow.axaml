@@ -2,90 +2,201 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="RemoteShouter.Views.MainWindow"
         Title="OpenRemoteShouter"
-        Width="760"
-        Height="560"
-        MinWidth="520"
-        MinHeight="460"
-        FontFamily="Microsoft YaHei, PingFang SC, Noto Sans CJK SC, WenQuanYi Micro Hei, sans-serif"
+        Width="860"
+        Height="640"
+        MinWidth="620"
+        MinHeight="520"
         WindowStartupLocation="CenterScreen">
-  <Grid RowDefinitions="Auto,*,Auto" Background="#F4F7F5">
-    <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#D9E1DC" BorderThickness="0,0,0,1" Padding="24,22">
-      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-        <TextBlock Grid.Row="0"
-                   Grid.Column="0"
-                   Text="OpenRemoteShouter"
-                   FontSize="30"
-                   FontWeight="Bold"
-                   Foreground="#18211D" />
-        <Border Grid.Row="0"
-                Grid.Column="1"
-                Padding="10,6"
-                CornerRadius="6"
-                Background="#E6F0EC">
-          <TextBlock x:Name="StatusText"
-                     Text="&#x542f;&#x52a8;&#x4e2d;"
-                     FontWeight="Bold"
-                     Foreground="#276955" />
+  <Grid RowDefinitions="Auto,*,Auto" Background="#F5F7FB">
+    <Border Grid.Row="0"
+            Background="#FFFFFF"
+            BorderBrush="#D7DDE8"
+            BorderThickness="0,0,0,1"
+            Padding="28,18">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Border Grid.Column="0"
+                Width="34"
+                Height="34"
+                Margin="0,0,12,0"
+                VerticalAlignment="Center"
+                Background="#FFFFFF"
+                BorderBrush="#D7DDE8"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="5">
+          <Image x:Name="AppLogo"
+                 Stretch="Uniform" />
         </Border>
-        <TextBlock Grid.Row="1"
-                   Grid.ColumnSpan="2"
-                   Margin="0,10,0,0"
-                   Text="&#x7f51;&#x9875;&#x670d;&#x52a1;&#x76d1;&#x542c; 21212 &#x7aef;&#x53e3;&#x3002;&#x8bf7;&#x4f7f;&#x7528;&#x4e0b;&#x65b9;&#x5730;&#x5740;&#x5728;&#x6d4f;&#x89c8;&#x5668;&#x91cc;&#x53d1;&#x9001;&#x558a;&#x8bdd;&#x3002;"
-                   FontSize="14"
-                   Foreground="#56615C" />
+        <StackPanel Grid.Column="1" Spacing="3">
+          <TextBlock Text="OpenRemoteShouter"
+                     FontSize="22"
+                     FontWeight="SemiBold"
+                     Foreground="#242424" />
+          <TextBlock Text="&#x8FDC;&#x7A0B;&#x558A;&#x8BDD;&#x63A7;&#x5236;&#x53F0;"
+                     FontSize="14"
+                     Foreground="#616161" />
+        </StackPanel>
+        <Border x:Name="StatusSurface"
+                Grid.Column="2"
+                VerticalAlignment="Top"
+                Padding="10,5"
+                CornerRadius="16"
+                Background="#F1FAF1">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Ellipse x:Name="StatusIndicator"
+                     Width="8"
+                     Height="8"
+                     VerticalAlignment="Center"
+                     Fill="#107C10" />
+            <TextBlock x:Name="StatusText"
+                       Text="&#x542F;&#x52A8;&#x4E2D;"
+                       FontWeight="SemiBold"
+                       Foreground="#107C10" />
+          </StackPanel>
+        </Border>
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto" Margin="24">
-      <StackPanel Grid.Row="0" Spacing="8">
-        <TextBlock Text="&#x8bbf;&#x95ee;&#x5730;&#x5740;" FontSize="18" FontWeight="Bold" Foreground="#18211D" />
-        <TextBlock Text="&#x5c40;&#x57df;&#x7f51;&#x8bbe;&#x5907;&#x8bbf;&#x95ee;&#x65f6;&#x8bf7;&#x9009;&#x62e9;&#x5e26;&#x672c;&#x673a; IP &#x7684;&#x5730;&#x5740;&#x3002;&#x5982;&#x65e0;&#x6cd5;&#x8bbf;&#x95ee;&#xff0c;&#x8bf7;&#x68c0;&#x67e5;&#x7cfb;&#x7edf;&#x9632;&#x706b;&#x5899;&#x662f;&#x5426;&#x653e;&#x884c; 21212 &#x7aef;&#x53e3;&#x3002;"
+    <ScrollViewer Grid.Row="1"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+      <Grid Margin="28,20"
+            RowDefinitions="Auto,Auto,*">
+        <Border Grid.Row="0"
+                Background="#F5F9FF"
+                BorderBrush="#C7E0F4"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="14,11">
+          <Grid ColumnDefinitions="Auto,*">
+            <Ellipse Width="8"
+                     Height="8"
+                     Margin="2,0,10,0"
+                     VerticalAlignment="Center"
+                     Fill="#0F6CBD" />
+            <TextBlock Grid.Column="1"
+                       Text="&#x7F51;&#x9875;&#x670D;&#x52A1;&#x76D1;&#x542C; 21212 &#x7AEF;&#x53E3;&#x3002;&#x8BF7;&#x4F7F;&#x7528;&#x4E0B;&#x65B9;&#x5730;&#x5740;&#x5728;&#x6D4F;&#x89C8;&#x5668;&#x91CC;&#x53D1;&#x9001;&#x558A;&#x8BDD;&#x3002;"
+                       TextWrapping="Wrap"
+                       Foreground="#385271" />
+          </Grid>
+        </Border>
+
+        <Border x:Name="ErrorInfoBar"
+                Grid.Row="1"
+                Margin="0,12,0,0"
+                Background="#FDE7E9"
+                BorderBrush="#F1B5B9"
+                BorderThickness="1"
+                CornerRadius="6"
+                IsVisible="False"
+                Padding="14,10">
+          <StackPanel Spacing="3">
+            <TextBlock Text="服务状态"
+                       FontWeight="SemiBold"
+                       Foreground="#8A1C1C" />
+            <TextBlock x:Name="ErrorText"
+                       TextWrapping="Wrap"
+                       Foreground="#8A1C1C" />
+          </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="2"
+              Margin="0,24,0,0"
+              ColumnDefinitions="1.12*,0.88*">
+          <StackPanel Grid.Column="0"
+                      Margin="0,0,12,0"
+                      Spacing="14">
+            <StackPanel Spacing="3">
+              <TextBlock Text="&#x8BBF;&#x95EE;&#x5730;&#x5740;"
+                         FontSize="18"
+                         FontWeight="SemiBold"
+                         Foreground="#242424" />
+              <TextBlock Text="&#x9009;&#x62E9;&#x5E26;&#x672C;&#x673A; IP &#x7684;&#x5730;&#x5740;&#xFF0C;&#x8BA9;&#x5C40;&#x57DF;&#x7F51;&#x8BBE;&#x5907;&#x6216;&#x4E2D;&#x8F6C;&#x8282;&#x70B9;&#x8BBF;&#x95EE;&#x3002;"
+                         TextWrapping="Wrap"
+                         Foreground="#616161" />
+            </StackPanel>
+            <Border Background="#FFFFFF"
+                    BorderBrush="#D7DDE8"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="4">
+              <ListBox x:Name="UrlsListBox"
+                       FontFamily="Consolas, Cascadia Mono, monospace"
+                       FontSize="14" />
+            </Border>
+            <Button x:Name="CopyButton"
+                    HorizontalAlignment="Left"
+                    Content="&#x590D;&#x5236;&#x8BBF;&#x95EE;&#x5730;&#x5740;"
+                    Click="CopyButton_OnClick" />
+          </StackPanel>
+
+          <StackPanel Grid.Column="1"
+                      Margin="12,0,0,0"
+                      Spacing="14">
+            <TextBlock Text="&#x5F53;&#x524D;&#x6D3B;&#x52A8;"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="#242424" />
+            <Border Background="#FFFFFF"
+                    BorderBrush="#D7DDE8"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="16">
+              <StackPanel Spacing="16">
+                <StackPanel Spacing="6">
+                  <TextBlock x:Name="CurrentMessageText"
+                             Text="&#x5F53;&#x524D;&#x6CA1;&#x6709;&#x6B63;&#x5728;&#x663E;&#x793A;&#x7684;&#x558A;&#x8BDD;&#x3002;"
+                             TextWrapping="Wrap"
+                             FontWeight="SemiBold"
+                             Foreground="#242424" />
+                  <TextBlock Text="&#x663E;&#x793A;&#x7AEF;&#x4F1A;&#x6839;&#x636E;&#x8BED;&#x97F3;&#x65F6;&#x957F;&#x81EA;&#x52A8;&#x4FDD;&#x6301;&#x663E;&#x793A;&#x3002;"
+                             TextWrapping="Wrap"
+                             FontSize="12"
+                             Foreground="#616161" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button x:Name="TestButton"
+                          Classes="accent"
+                          Content="&#x672C;&#x673A;&#x6D4B;&#x8BD5;&#x663E;&#x793A;"
+                          Click="TestButton_OnClick" />
+                  <Button x:Name="CloseDisplayButton"
+                          Content="&#x5173;&#x95ED;&#x5F53;&#x524D;&#x663E;&#x793A;"
+                          Click="CloseDisplayButton_OnClick" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Grid>
+      </Grid>
+    </ScrollViewer>
+
+    <Border Grid.Row="2"
+            Background="#FFFFFF"
+            BorderBrush="#D7DDE8"
+            BorderThickness="0,1,0,0"
+            Padding="28,12">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0"
+                   VerticalAlignment="Center"
+                   Text="&#x7F51;&#x9875;&#x670D;&#x52A1;&#x7684;&#x505C;&#x6B62;&#x548C;&#x8F6F;&#x4EF6;&#x9000;&#x51FA;&#x9700;&#x8981;&#x7BA1;&#x7406;&#x5458;&#x5BC6;&#x7801;&#x3002;"
                    TextWrapping="Wrap"
-                   Foreground="#56615C" />
-      </StackPanel>
-
-      <Border Grid.Row="1"
-              Margin="0,14,0,14"
-              Background="#FFFFFF"
-              BorderBrush="#D9E1DC"
-              BorderThickness="1"
-              CornerRadius="8">
-        <ListBox x:Name="UrlsListBox"
-                 BorderThickness="0"
-                 Background="Transparent"
-                 FontFamily="Consolas, Cascadia Mono, monospace"
-                 FontSize="15"
-                 Padding="8" />
-      </Border>
-
-      <Grid Grid.Row="2" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
-        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
-          <TextBlock x:Name="CurrentMessageText"
-                     Text="&#x5f53;&#x524d;&#x6ca1;&#x6709;&#x6b63;&#x5728;&#x663e;&#x793a;&#x7684;&#x558a;&#x8bdd;&#x3002;"
-                     FontWeight="Bold"
-                     Foreground="#18211D" />
-          <TextBlock x:Name="ErrorText"
-                     IsVisible="False"
-                     TextWrapping="Wrap"
-                     Foreground="#9B3F37" />
-        </StackPanel>
-        <StackPanel Grid.Row="0"
-                    Grid.Column="1"
+                   FontSize="12"
+                   Foreground="#616161" />
+        <StackPanel Grid.Column="1"
                     Orientation="Horizontal"
-                    Spacing="10"
-                    VerticalAlignment="Top">
-          <Button x:Name="CopyButton" Content="&#x590d;&#x5236;&#x5730;&#x5740;" Click="CopyButton_OnClick" />
-          <Button x:Name="TestButton" Content="&#x672c;&#x673a;&#x6d4b;&#x8bd5;" Click="TestButton_OnClick" />
-          <Button x:Name="CloseDisplayButton" Content="&#x5173;&#x95ed;&#x663e;&#x793a;" Click="CloseDisplayButton_OnClick" />
+                    Spacing="8">
+          <Button x:Name="StartButton"
+                  Classes="accent"
+                  Content="&#x542F;&#x52A8;&#x670D;&#x52A1;"
+                  Click="StartButton_OnClick" />
+          <Button x:Name="StopButton"
+                  Content="&#x505C;&#x6B62;&#x670D;&#x52A1;"
+                  Click="StopButton_OnClick" />
+          <Button x:Name="ExitButton"
+                  Content="&#x9000;&#x51FA;&#x8F6F;&#x4EF6;"
+                  Click="ExitButton_OnClick" />
         </StackPanel>
       </Grid>
-    </Grid>
-
-    <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#D9E1DC" BorderThickness="0,1,0,0" Padding="24,14">
-      <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
-        <Button x:Name="StartButton" Content="&#x542f;&#x52a8;&#x670d;&#x52a1;" Click="StartButton_OnClick" />
-        <Button x:Name="StopButton" Content="&#x505c;&#x6b62;&#x670d;&#x52a1;" Click="StopButton_OnClick" />
-      </StackPanel>
     </Border>
   </Grid>
 </Window>

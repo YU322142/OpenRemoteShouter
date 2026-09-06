@@ -15,8 +15,10 @@ public partial class ShoutWindow : Window
     private readonly DispatcherTimer _topmostReassertTimer;
     private readonly DispatcherTimer _fullscreenReassertTimer;
     private readonly DispatcherTimer _gradientTimer;
-    private readonly TranslateTransform _titleTransform = new();
-    private readonly TranslateTransform _messageTransform = new();
+    private readonly TranslateTransform _accentTransform = new();
+    private readonly TranslateTransform _bodyTransform = new();
+    private readonly TranslateTransform _frameTransform = new();
+    private readonly TranslateTransform _closeTransform = new();
     private LinearGradientBrush? _accentGradient;
     private Color _accentStart;
     private Color _accentMiddle;
@@ -47,8 +49,10 @@ public partial class ShoutWindow : Window
     public ShoutWindow(ShoutMessage message)
     {
         InitializeComponent();
-        TitleText.RenderTransform = _titleTransform;
-        MessageText.RenderTransform = _messageTransform;
+        AccentBand.RenderTransform = _accentTransform;
+        BodySurface.RenderTransform = _bodyTransform;
+        MessageFrame.RenderTransform = _frameTransform;
+        CloseButton.RenderTransform = _closeTransform;
         _message = message;
         _remainingSeconds = Math.Max(10, message.DurationSeconds);
         _durationReady = !message.SpeechEnabled;
@@ -80,6 +84,7 @@ public partial class ShoutWindow : Window
         ConfigureWindow();
         ApplyTheme();
         ApplyMessage();
+        PrepareEntranceState();
 
         Opened += ShoutWindow_OnOpened;
         Closed += ShoutWindow_OnClosed;
@@ -88,6 +93,17 @@ public partial class ShoutWindow : Window
     }
 
     public bool ShouldStopSpeechOnClose { get; set; } = true;
+
+    private void PrepareEntranceState()
+    {
+        // Set this before Show() so the platform cannot paint one completed
+        // frame before the Opened animation gets its first dispatcher turn.
+        _accentTransform.Y = -1000;
+        _bodyTransform.Y = -10000;
+        _frameTransform.Y = -1000;
+        _closeTransform.Y = -1000;
+        CloseButton.Opacity = 0;
+    }
 
     public void SetDisplayDuration(TimeSpan duration)
     {
@@ -154,9 +170,12 @@ public partial class ShoutWindow : Window
                 new GradientStop(_accentEnd, 1)
             }
         };
-        Background = palette.Page;
-        RootGrid.Background = palette.Page;
+        // Keep the window itself transparent so the existing desktop remains
+        // visible while the title and body surfaces enter from above.
+        Background = Brushes.Transparent;
+        RootGrid.Background = Brushes.Transparent;
         AccentBand.Background = _accentGradient;
+        BodySurface.Background = palette.Page;
         EyebrowText.Foreground = palette.HeaderSubtleText;
         TitleText.Foreground = palette.HeaderText;
         CountdownText.Foreground = palette.HeaderSubtleText;
@@ -240,25 +259,41 @@ public partial class ShoutWindow : Window
             return;
         }
 
-        const double durationMs = 760;
-        _titleTransform.Y = -72;
-        _messageTransform.Y = -92;
-        TitleText.Opacity = 0;
-        MessageText.Opacity = 0;
+        const double titleDurationMs = 720;
+        const double bodyDelayMs = 100;
+        const double bodyDurationMs = 900;
+        const double frameDelayMs = 260;
+        const double frameDurationMs = 820;
+        const double closeDelayMs = 180;
+        const double closeDurationMs = 650;
+        var titleTravel = Math.Max(AccentBand.Bounds.Height, 210) + 16;
+        var bodyTravel = Math.Max(BodySurface.Bounds.Height, ClientSize.Height - AccentBand.Bounds.Height) + 16;
+        _accentTransform.Y = -titleTravel;
+        _bodyTransform.Y = -bodyTravel;
+        _frameTransform.Y = -220;
+        _closeTransform.Y = -120;
+        CloseButton.Opacity = 0;
 
         var started = DateTime.UtcNow;
         while (!_closed)
         {
             var elapsed = (DateTime.UtcNow - started).TotalMilliseconds;
-            var progress = Math.Clamp(elapsed / durationMs, 0, 1);
-            var eased = 1 - Math.Pow(1 - progress, 3);
+            var titleProgress = Math.Clamp(elapsed / titleDurationMs, 0, 1);
+            var bodyProgress = Math.Clamp((elapsed - bodyDelayMs) / bodyDurationMs, 0, 1);
+            var frameProgress = Math.Clamp((elapsed - frameDelayMs) / frameDurationMs, 0, 1);
+            var closeProgress = Math.Clamp((elapsed - closeDelayMs) / closeDurationMs, 0, 1);
+            var titleEased = EaseOutExpo(titleProgress, 7.2);
+            var bodyEased = EaseOutExpo(bodyProgress, 5.4);
+            var frameEased = EaseOutExpo(frameProgress, 7.8);
+            var closeEased = EaseOutExpo(closeProgress, 6.5);
 
-            _titleTransform.Y = -72 * (1 - eased);
-            _messageTransform.Y = -92 * (1 - eased);
-            TitleText.Opacity = eased;
-            MessageText.Opacity = eased;
+            _accentTransform.Y = -titleTravel * (1 - titleEased);
+            _bodyTransform.Y = -bodyTravel * (1 - bodyEased);
+            _frameTransform.Y = -220 * (1 - frameEased);
+            _closeTransform.Y = -120 * (1 - closeEased);
+            CloseButton.Opacity = closeEased;
 
-            if (progress >= 1)
+            if (titleProgress >= 1 && bodyProgress >= 1 && frameProgress >= 1 && closeProgress >= 1)
             {
                 break;
             }
@@ -268,10 +303,11 @@ public partial class ShoutWindow : Window
 
         if (!_closed)
         {
-            _titleTransform.Y = 0;
-            _messageTransform.Y = 0;
-            TitleText.Opacity = 1;
-            MessageText.Opacity = 1;
+            _accentTransform.Y = 0;
+            _bodyTransform.Y = 0;
+            _frameTransform.Y = 0;
+            _closeTransform.Y = 0;
+            CloseButton.Opacity = 1;
         }
     }
 
@@ -387,6 +423,13 @@ public partial class ShoutWindow : Window
             (byte)(from.B + ((to.B - from.B) * amount)));
     }
 
+    private static double EaseOutExpo(double progress, double strength)
+    {
+        progress = Math.Clamp(progress, 0, 1);
+        var tail = Math.Pow(2, -strength);
+        return (1 - Math.Pow(2, -strength * progress)) / (1 - tail);
+    }
+
     private static double EstimateTextHeight(string text, double fontSize, double width)
     {
         var lineHeight = Math.Ceiling(fontSize * 1.32);
@@ -427,12 +470,26 @@ public partial class ShoutWindow : Window
         {
             return theme switch
             {
-                "blue" => Create("#EFF6FF", "#1D4ED8", "#60A5FA", "#2563EB", "#FFFFFF", "#BFDBFE"),
-                "green" => Create("#F0FDF4", "#166534", "#4ADE80", "#15803D", "#FFFFFF", "#BBF7D0"),
-                "amber" => Create("#FFFBEB", "#92400E", "#F59E0B", "#B45309", "#FFFFFF", "#FDE68A"),
-                "rose" => Create("#FFF1F2", "#9F1239", "#FB7185", "#BE123C", "#FFFFFF", "#FECDD3"),
-                "violet" => Create("#F5F3FF", "#5B21B6", "#A78BFA", "#6D28D9", "#FFFFFF", "#DDD6FE"),
-                _ => Create("#ECFEFF", "#0E7490", "#22D3EE", "#0891B2", "#FFFFFF", "#A5F3FC")
+                "blue" => Create("#EFF6FF", "#1E40AF", "#2563EB", "#60A5FA", "#FFFFFF", "#BFDBFE"),
+                "blue-dark" => Create("#0B1F3A", "#1E40AF", "#2563EB", "#60A5FA", "#111D35", "#315A9E"),
+                "green" => Create("#F0FDF4", "#047857", "#15803D", "#4ADE80", "#FFFFFF", "#BBF7D0"),
+                "green-dark" => Create("#092B22", "#047857", "#15803D", "#34D399", "#102A24", "#2C8A70"),
+                "amber" => Create("#FFFBEB", "#B45309", "#D97706", "#F59E0B", "#FFFFFF", "#FDE68A"),
+                "amber-dark" => Create("#33220B", "#B45309", "#D97706", "#FBBF24", "#2A1B0A", "#9A6A22"),
+                "rose" => Create("#FFF1F2", "#BE123C", "#E11D48", "#FB7185", "#FFFFFF", "#FECDD3"),
+                "rose-dark" => Create("#3A111F", "#BE123C", "#E11D48", "#FB7185", "#2E1320", "#A74A68"),
+                "violet" => Create("#F5F3FF", "#6D28D9", "#7C3AED", "#A78BFA", "#FFFFFF", "#DDD6FE"),
+                "violet-dark" => Create("#21133D", "#6D28D9", "#7C3AED", "#A78BFA", "#21182F", "#7652B6"),
+                "indigo" => Create("#EEF2FF", "#4F46E5", "#6366F1", "#818CF8", "#FFFFFF", "#C7D2FE"),
+                "indigo-dark" => Create("#171A3A", "#4F46E5", "#6366F1", "#818CF8", "#191B32", "#5C65B6"),
+                "magenta" => Create("#FDF4FF", "#C026D3", "#D946EF", "#E879F9", "#FFFFFF", "#F5D0FE"),
+                "magenta-dark" => Create("#351333", "#C026D3", "#D946EF", "#E879F9", "#2B182C", "#A958A9"),
+                "orange" => Create("#FFF7ED", "#EA580C", "#F97316", "#FB923C", "#FFFFFF", "#FED7AA"),
+                "orange-dark" => Create("#3A1D0B", "#EA580C", "#F97316", "#FB923C", "#2D1A10", "#B76A38"),
+                "emerald" => Create("#ECFDF5", "#047857", "#059669", "#34D399", "#FFFFFF", "#A7F3D0"),
+                "emerald-dark" => Create("#092B25", "#047857", "#059669", "#34D399", "#102A25", "#2C8A72"),
+                "cyan-dark" => Create("#0B2B33", "#0E7490", "#0891B2", "#22D3EE", "#10262C", "#287A88"),
+                _ => Create("#ECFEFF", "#05616B", "#087F8C", "#22D3EE", "#FFFFFF", "#A5F3FC")
             };
         }
 

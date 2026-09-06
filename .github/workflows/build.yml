@@ -64,7 +64,10 @@ jobs:
           cat > "artifacts/$artifact_name/run.sh" << 'SCRIPT'
           #!/usr/bin/env bash
           set -e
-          # Uncomment all three lines for trusted relay setup, then replace the token.
+          # Uncomment OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 for LAN access.
+          # Uncomment the trusted relay lines for remote first-run setup,
+          # then replace the token with at least 32 random bytes.
+          # export OPEN_REMOTE_SHOUTER_ALLOW_LAN=1
           # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
           # export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
           # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES'
@@ -87,7 +90,10 @@ jobs:
 
           cat > "artifacts/$artifact_name/run.bat" << 'SCRIPT'
           @echo off
-          rem Uncomment all three lines for trusted relay setup, then replace the token.
+          rem Uncomment OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 for LAN access.
+          rem Uncomment the trusted relay lines for remote first-run setup,
+          rem then replace the token with at least 32 random bytes.
+          rem set "OPEN_REMOTE_SHOUTER_ALLOW_LAN=1"
           rem set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1"
           rem set "OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1"
           rem set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN=REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES"
@@ -188,7 +194,10 @@ jobs:
           if [[ "$rid" == win-* ]]; then
             cat > "$package_root/run.bat" << 'SCRIPT'
           @echo off
-          rem Uncomment all three lines for trusted relay setup, then replace the token.
+          rem Uncomment OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 for LAN access.
+          rem Uncomment the trusted relay lines for remote first-run setup,
+          rem then replace the token with at least 32 random bytes.
+          rem set "OPEN_REMOTE_SHOUTER_ALLOW_LAN=1"
           rem set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1"
           rem set "OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1"
           rem set "OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN=REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES"
@@ -202,7 +211,10 @@ jobs:
             cat > "$package_root/run.sh" << 'SCRIPT'
           #!/usr/bin/env bash
           set -e
-          # Uncomment all three lines for trusted relay setup, then replace the token.
+          # Uncomment OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 for LAN access.
+          # Uncomment the trusted relay lines for remote first-run setup,
+          # then replace the token with at least 32 random bytes.
+          # export OPEN_REMOTE_SHOUTER_ALLOW_LAN=1
           # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
           # export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
           # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES'
@@ -369,7 +381,10 @@ jobs:
           cat > "$package_root/run.sh" << 'SCRIPT'
           #!/usr/bin/env bash
           set -e
-          # Uncomment all three lines for trusted relay setup, then replace the token.
+          # Uncomment OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 for LAN access.
+          # Uncomment the trusted relay lines for remote first-run setup,
+          # then replace the token with at least 32 random bytes.
+          # export OPEN_REMOTE_SHOUTER_ALLOW_LAN=1
           # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS=127.0.0.1
           # export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
           # export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES'

@@ -8,6 +8,9 @@
         MinHeight="420"
         FontFamily="Microsoft YaHei, PingFang SC, Noto Sans CJK SC, WenQuanYi Micro Hei, sans-serif"
         WindowStartupLocation="Manual"
+        TransparencyLevelHint="Transparent"
+        TransparencyBackgroundFallback="Transparent"
+        Background="Transparent"
         SystemDecorations="None"
         CanResize="False">
   <Grid x:Name="RootGrid" RowDefinitions="Auto,*">
@@ -15,7 +18,9 @@
             Grid.Row="0"
             Height="210"
             Padding="56,38,120,38"
-            Background="#0E7490">
+            Background="#0E7490"
+            ZIndex="2"
+            RenderTransformOrigin="50%,0%">
       <StackPanel VerticalAlignment="Center" Spacing="8">
         <TextBlock x:Name="EyebrowText"
                    Text="OpenRemoteShouter"
@@ -27,37 +32,33 @@
                    FontSize="46"
                    FontWeight="Bold"
                    TextWrapping="Wrap"
-                   TextTrimming="CharacterEllipsis"
-                   RenderTransformOrigin="50%,50%">
-          <TextBlock.RenderTransform>
-            <TranslateTransform />
-          </TextBlock.RenderTransform>
-        </TextBlock>
+                   TextTrimming="CharacterEllipsis" />
       </StackPanel>
     </Border>
 
-    <Border x:Name="MessageFrame"
+    <Border x:Name="BodySurface"
             Grid.Row="1"
-            Margin="48,-28,48,48"
-            Padding="56"
-            CornerRadius="16"
-            BorderThickness="1">
-      <ScrollViewer x:Name="MessageScrollViewer"
-                    VerticalScrollBarVisibility="Auto"
-                    HorizontalScrollBarVisibility="Disabled">
-        <Grid x:Name="MessageViewport">
-          <TextBlock x:Name="MessageText"
-                     HorizontalAlignment="Center"
-                     VerticalAlignment="Center"
-                     TextAlignment="Center"
-                     TextWrapping="Wrap"
-                     RenderTransformOrigin="50%,0%">
-            <TextBlock.RenderTransform>
-              <TranslateTransform />
-            </TextBlock.RenderTransform>
-          </TextBlock>
-        </Grid>
-      </ScrollViewer>
+            Background="#EAF8FA"
+            ZIndex="1"
+            RenderTransformOrigin="50%,0%">
+      <Border x:Name="MessageFrame"
+              Margin="48,-28,48,48"
+              Padding="56"
+              CornerRadius="16"
+              BorderThickness="1"
+              RenderTransformOrigin="50%,0%">
+        <ScrollViewer x:Name="MessageScrollViewer"
+                      VerticalScrollBarVisibility="Hidden"
+                      HorizontalScrollBarVisibility="Disabled">
+          <Grid x:Name="MessageViewport">
+            <TextBlock x:Name="MessageText"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap" />
+          </Grid>
+        </ScrollViewer>
+      </Border>
     </Border>
 
     <Button x:Name="CloseButton"
@@ -67,17 +68,15 @@
             Margin="28"
             Padding="0"
             CornerRadius="28"
+            ZIndex="3"
             HorizontalAlignment="Right"
             VerticalAlignment="Top"
             HorizontalContentAlignment="Center"
             VerticalContentAlignment="Center"
-            Click="CloseButton_OnClick">
-      <TextBlock Text="&#x00D7;"
-                 FontSize="34"
-                 FontWeight="Light"
-                 HorizontalAlignment="Center"
-                 VerticalAlignment="Center" />
-    </Button>
+            Click="CloseButton_OnClick"
+            Content="×"
+            FontSize="28"
+            FontWeight="Regular" />
 
     <!-- Kept hidden for compatibility with the duration timer API. -->
     <TextBlock x:Name="CountdownText" IsVisible="False" />

@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using Avalonia.Platform;
+using Avalonia.Media.Imaging;
 using RemoteShouter.Models;
 using RemoteShouter.Services;
 using RemoteShouter.Views;
@@ -17,6 +17,8 @@ public partial class App : Application
     private SpeechQueueService? _speechService;
     private MainWindow? _mainWindow;
     private TrayIcon? _trayIcon;
+    private Bitmap? _trayMenuIcon;
+    private bool _exitRequested;
 
     public override void Initialize()
     {
@@ -40,6 +42,7 @@ public partial class App : Application
             desktop.Exit += async (_, _) =>
             {
                 _trayIcon?.Dispose();
+                _trayMenuIcon?.Dispose();
                 if (_server is not null)
                 {
                     await _server.StopAsync();
@@ -63,42 +66,66 @@ public partial class App : Application
         }
 
         var menu = new NativeMenu();
-        var openItem = new NativeMenuItem { Header = "\u6253\u5f00\u63a7\u5236\u53f0" };
+        _trayMenuIcon = new Bitmap(AppIconFactory.CreateStream());
+        // The branded first item keeps the logo beside OpenRemoteShouter.
+        // Clicking it opens the console; the platform owns right-click menu
+        // placement and rendering.
+        var openItem = new NativeMenuItem { Header = "OpenRemoteShouter", Icon = _trayMenuIcon };
         openItem.Click += (_, _) => ShowMainWindow();
         menu.Items.Add(openItem);
 
-        var copyItem = new NativeMenuItem { Header = "\u590d\u5236\u8bbf\u95ee\u5730\u5740" };
+        var copyItem = new NativeMenuItem { Header = "复制访问地址" };
         copyItem.Click += async (_, _) => await CopyFirstUrlAsync();
         menu.Items.Add(copyItem);
 
-        var testItem = new NativeMenuItem { Header = "\u672c\u673a\u6d4b\u8bd5" };
+        var testItem = new NativeMenuItem { Header = "本机测试" };
         testItem.Click += async (_, _) => await ShowTestMessageAsync();
         menu.Items.Add(testItem);
-
         menu.Items.Add(new NativeMenuItemSeparator());
 
-        var startItem = new NativeMenuItem { Header = "\u542f\u52a8\u7f51\u9875\u670d\u52a1" };
-        startItem.Click += async (_, _) => await _server.StartAsync();
+        var startItem = new NativeMenuItem { Header = "启动网页服务" };
+        startItem.Click += async (_, _) => await StartServerFromTrayAsync();
         menu.Items.Add(startItem);
 
-        var stopItem = new NativeMenuItem { Header = "\u505c\u6b62\u7f51\u9875\u670d\u52a1" };
-        stopItem.Click += async (_, _) => await _server.StopAsync();
+        var stopItem = new NativeMenuItem { Header = "停止网页服务" };
+        stopItem.Click += async (_, _) => await StopServerFromTrayAsync();
         menu.Items.Add(stopItem);
-
         menu.Items.Add(new NativeMenuItemSeparator());
 
-        var exitItem = new NativeMenuItem { Header = "\u9000\u51fa" };
-        exitItem.Click += (_, _) => _desktop?.TryShutdown();
+        var exitItem = new NativeMenuItem { Header = "退出" };
+        exitItem.Click += async (_, _) => await ExitFromTrayAsync();
         menu.Items.Add(exitItem);
 
         _trayIcon = new TrayIcon
         {
-            Icon = new WindowIcon(CreateTrayIconStream()),
+            Icon = new WindowIcon(AppIconFactory.CreateStream()),
             ToolTipText = "OpenRemoteShouter",
             Menu = menu,
             IsVisible = true
         };
+        // TrayIcon.Clicked is the primary/left-click action. The context menu
+        // is owned by the platform and opens on right-click with native
+        // placement, which is required for tray icons.
         _trayIcon.Clicked += (_, _) => ShowMainWindow();
+    }
+
+    private async Task StartServerFromTrayAsync()
+    {
+        if (_server is null || _server.Status.IsRunning)
+        {
+            return;
+        }
+
+        try
+        {
+            await _server.StartAsync();
+            _mainWindow?.RefreshStatus();
+        }
+        catch (Exception ex)
+        {
+            AppLogService.Error("Failed to start server from tray", ex);
+            _mainWindow?.ShowServiceError(ex.Message);
+        }
     }
 
     private void ShowMainWindow()
@@ -158,57 +185,59 @@ public partial class App : Application
             DateTimeOffset.Now));
     }
 
-    private static Stream CreateTrayIconStream()
+    private async Task StopServerFromTrayAsync()
     {
-        const int size = 16;
-        const int xorBytes = size * size * 4;
-        const int andBytes = size * 4;
-        const int imageBytes = 40 + xorBytes + andBytes;
-        const int imageOffset = 22;
-
-        var stream = new MemoryStream(imageOffset + imageBytes);
-        using var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
-
-        writer.Write((ushort)0);
-        writer.Write((ushort)1);
-        writer.Write((ushort)1);
-        writer.Write((byte)size);
-        writer.Write((byte)size);
-        writer.Write((byte)0);
-        writer.Write((byte)0);
-        writer.Write((ushort)1);
-        writer.Write((ushort)32);
-        writer.Write(imageBytes);
-        writer.Write(imageOffset);
-
-        writer.Write(40);
-        writer.Write(size);
-        writer.Write(size * 2);
-        writer.Write((ushort)1);
-        writer.Write((ushort)32);
-        writer.Write(0);
-        writer.Write(xorBytes);
-        writer.Write(0);
-        writer.Write(0);
-        writer.Write(0);
-        writer.Write(0);
-
-        for (var y = size - 1; y >= 0; y--)
+        if (_server is null || !_server.Status.IsRunning)
         {
-            for (var x = 0; x < size; x++)
-            {
-                var dx = x - 7.5;
-                var dy = y - 7.5;
-                var inside = dx * dx + dy * dy <= 56;
-                writer.Write((byte)0x90);
-                writer.Write((byte)0x74);
-                writer.Write((byte)0x0E);
-                writer.Write((byte)(inside ? 0xFF : 0x00));
-            }
+            return;
         }
 
-        writer.Write(new byte[andBytes]);
-        stream.Position = 0;
-        return stream;
+        if (!await ConfirmAdministratorAsync("确认停止网页服务"))
+        {
+            return;
+        }
+
+        try
+        {
+            await _server.StopAsync();
+            _mainWindow?.RefreshStatus();
+        }
+        catch (Exception ex)
+        {
+            AppLogService.Error("Failed to stop server from tray", ex);
+            _mainWindow?.ShowServiceError(ex.Message);
+        }
     }
+
+    private async Task ExitFromTrayAsync()
+    {
+        if (_exitRequested || _server is null)
+        {
+            return;
+        }
+
+        if (!await ConfirmAdministratorAsync("确认退出 OpenRemoteShouter"))
+        {
+            return;
+        }
+
+        _exitRequested = true;
+        _desktop?.TryShutdown();
+    }
+
+    private async Task<bool> ConfirmAdministratorAsync(string operation)
+    {
+        if (_server is null)
+        {
+            return false;
+        }
+
+        if (_mainWindow is null)
+        {
+            ShowMainWindow();
+        }
+
+        return await AdminPasswordWindow.ConfirmAsync(_server, _mainWindow, operation);
+    }
+
 }

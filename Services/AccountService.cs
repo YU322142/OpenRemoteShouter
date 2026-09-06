@@ -20,6 +20,16 @@ public sealed class AccountService
     private const int MinimumPasswordHashIterations = 100_000;
     private const int MaximumPasswordHashIterations = 2_000_000;
     private const int MaxDisplayNameLength = 48;
+    private const string DefaultTheme = "cyan";
+    private static readonly string[] SupportedThemes =
+    [
+        "cyan", "cyan-dark", "blue", "blue-dark", "green", "green-dark",
+        "amber", "amber-dark", "rose", "rose-dark", "violet", "violet-dark",
+        "indigo", "indigo-dark", "magenta", "magenta-dark", "orange", "orange-dark",
+        "emerald", "emerald-dark"
+    ];
+
+    public static IReadOnlyList<string> ThemeNames => SupportedThemes;
     private const int MaxUsers = 1_024;
     private const long MaxAccountDatabaseBytes = 1 * 1024 * 1024;
     private const int MaxSessionEntries = 4_096;
@@ -139,6 +149,7 @@ public sealed class AccountService
             {
                 Username = normalizedUsername,
                 DisplayName = NormalizeDisplayName(request.DisplayName, normalizedUsername),
+                Theme = DefaultTheme,
                 PasswordHash = passwordHash,
                 IsAdmin = true,
                 IsEnabled = true,
@@ -335,6 +346,54 @@ public sealed class AccountService
         return (true, StatusCodes.Status200OK, null, session);
     }
 
+    /// <summary>
+    /// Verifies a password against any enabled administrator account. This is
+    /// used only for local destructive-operation confirmations; it does not
+    /// create a web session or expose which administrator matched.
+    /// </summary>
+    public bool VerifyAnyAdministratorPassword(string? password)
+    {
+        if (_databaseLoadFailed || string.IsNullOrEmpty(password) || password.Length > 256)
+        {
+            return false;
+        }
+
+        StoredUser[] administrators;
+        lock (_lock)
+        {
+            administrators = _database.Users
+                .Where(user => user.IsEnabled && user.IsAdmin)
+                .ToArray();
+        }
+
+        foreach (var administrator in administrators)
+        {
+            if (!_loginVerificationGate.Wait(0))
+            {
+                return false;
+            }
+
+            bool valid;
+            try
+            {
+                valid = VerifyPassword(password, administrator.PasswordHash);
+            }
+            finally
+            {
+                _loginVerificationGate.Release();
+            }
+
+            if (valid)
+            {
+                AppLogService.Info($"Local administrator confirmation succeeded. username={administrator.Username}");
+                return true;
+            }
+        }
+
+        AppLogService.Info("Local administrator confirmation failed.");
+        return false;
+    }
+
     public void Logout(AccountSession session)
     {
         RemoveSession(session.Token);
@@ -435,6 +494,18 @@ public sealed class AccountService
         }
     }
 
+    public IReadOnlyList<string> ListThemesUsedByOthers(AccountUser actor)
+    {
+        lock (_lock)
+        {
+            return _database.Users
+                .Where(user => !string.Equals(user.Username, actor.Username, StringComparison.OrdinalIgnoreCase))
+                .Select(user => NormalizeTheme(user.Theme))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+    }
+
     public (bool Ok, int StatusCode, string? Error, AccountUser? User) CreateUser(
         CreateUserRequest request,
         AccountUser actor)
@@ -442,6 +513,7 @@ public sealed class AccountService
         var normalizedUsername = NormalizeUsername(request.Username);
         var validationError = ValidateUsername(normalizedUsername)
                               ?? ValidateDisplayName(request.DisplayName)
+                              ?? ValidateTheme(request.Theme)
                               ?? ValidatePassword(request.Password);
         if (validationError is not null)
         {
@@ -471,10 +543,17 @@ public sealed class AccountService
             }
 
             var now = DateTimeOffset.UtcNow;
+            var selectedTheme = NormalizeTheme(request.Theme);
+            if (IsThemeUsedByAnotherUserLocked(selectedTheme, normalizedUsername))
+            {
+                return (false, StatusCodes.Status409Conflict, "This theme is already assigned to another user.", null);
+            }
+
             var user = new StoredUser
             {
                 Username = normalizedUsername,
                 DisplayName = NormalizeDisplayName(request.DisplayName, normalizedUsername),
+                Theme = selectedTheme,
                 PasswordHash = passwordHash,
                 IsAdmin = request.IsAdmin,
                 IsEnabled = true,
@@ -514,6 +593,12 @@ public sealed class AccountService
             }
         }
 
+        var themeError = ValidateTheme(request.Theme);
+        if (themeError is not null)
+        {
+            return (false, StatusCodes.Status400BadRequest, themeError, null);
+        }
+
         lock (_lock)
         {
             var state = ValidateUpdateStateLocked(username, request, actor);
@@ -548,7 +633,14 @@ public sealed class AccountService
 
             var user = state.User;
 
+            if (!string.IsNullOrWhiteSpace(request.Theme)
+                && IsThemeUsedByAnotherUserLocked(NormalizeTheme(request.Theme), user.Username))
+            {
+                return (false, StatusCodes.Status409Conflict, "This theme is already assigned to another user.", null);
+            }
+
             var originalDisplayName = user.DisplayName;
+            var originalTheme = user.Theme;
             var originalIsAdmin = user.IsAdmin;
             var originalIsEnabled = user.IsEnabled;
             var originalPasswordHash = user.PasswordHash;
@@ -559,6 +651,11 @@ public sealed class AccountService
             if (!string.IsNullOrWhiteSpace(request.DisplayName))
             {
                 user.DisplayName = NormalizeDisplayName(request.DisplayName, user.Username);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.Theme))
+            {
+                user.Theme = NormalizeTheme(request.Theme);
             }
 
             if (newPasswordHash is not null)
@@ -585,6 +682,7 @@ public sealed class AccountService
             if (!HasEnabledAdmin())
             {
                 user.DisplayName = originalDisplayName;
+                user.Theme = originalTheme;
                 user.IsAdmin = originalIsAdmin;
                 user.IsEnabled = originalIsEnabled;
                 user.PasswordHash = originalPasswordHash;
@@ -601,6 +699,7 @@ public sealed class AccountService
             catch
             {
                 user.DisplayName = originalDisplayName;
+                user.Theme = originalTheme;
                 user.IsAdmin = originalIsAdmin;
                 user.IsEnabled = originalIsEnabled;
                 user.PasswordHash = originalPasswordHash;
@@ -612,6 +711,67 @@ public sealed class AccountService
             if (shouldInvalidateSessions)
             {
                 InvalidateUserSessions(user.Username);
+            }
+
+            return (true, StatusCodes.Status200OK, null, ToAccountUser(user));
+        }
+    }
+
+    public (bool Ok, int StatusCode, string? Error, AccountUser? User) UpdateProfile(
+        UpdateProfileRequest request,
+        AccountUser actor)
+    {
+        var displayNameError = ValidateDisplayName(request.DisplayName);
+        if (displayNameError is not null || string.IsNullOrWhiteSpace(request.DisplayName))
+        {
+            return (false, StatusCodes.Status400BadRequest,
+                displayNameError ?? "Display name is required.", null);
+        }
+
+        var themeError = ValidateTheme(request.Theme, required: true);
+        if (themeError is not null)
+        {
+            return (false, StatusCodes.Status400BadRequest, themeError, null);
+        }
+
+        lock (_lock)
+        {
+            if (_databaseLoadFailed)
+            {
+                return (false, StatusCodes.Status500InternalServerError,
+                    "Accounts database could not be loaded.", null);
+            }
+
+            var user = _database.Users.FirstOrDefault(x =>
+                string.Equals(x.Username, actor.Username, StringComparison.OrdinalIgnoreCase));
+            if (user is null || !user.IsEnabled || !IsCurrentSessionSnapshot(user, actor))
+            {
+                return (false, StatusCodes.Status401Unauthorized, "Session is no longer valid.", null);
+            }
+
+            var selectedTheme = NormalizeTheme(request.Theme);
+            if (IsThemeUsedByAnotherUserLocked(selectedTheme, user.Username))
+            {
+                return (false, StatusCodes.Status409Conflict, "This theme is already assigned to another user.", null);
+            }
+
+            var originalDisplayName = user.DisplayName;
+            var originalTheme = user.Theme;
+            var originalUpdatedAt = user.UpdatedAt;
+            user.DisplayName = NormalizeDisplayName(request.DisplayName, user.Username);
+            user.Theme = selectedTheme;
+            user.UpdatedAt = DateTimeOffset.UtcNow;
+
+            try
+            {
+                SaveDatabase();
+            }
+            catch
+            {
+                user.DisplayName = originalDisplayName;
+                user.Theme = originalTheme;
+                user.UpdatedAt = originalUpdatedAt;
+                throw;
             }
 
             return (true, StatusCodes.Status200OK, null, ToAccountUser(user));
@@ -961,6 +1121,14 @@ public sealed class AccountService
             }
 
             user.DisplayName = NormalizeDisplayName(user.DisplayName, user.Username);
+            var themeError = ValidateTheme(user.Theme);
+            if (themeError is not null)
+            {
+                error = themeError;
+                return false;
+            }
+
+            user.Theme = NormalizeTheme(user.Theme);
             if (!TryDecodePasswordHash(user.PasswordHash, out _, out _, out _))
             {
                 error = "Accounts database contains an invalid password hash.";
@@ -1053,6 +1221,33 @@ public sealed class AccountService
         return string.IsNullOrWhiteSpace(normalized) ? username : normalized;
     }
 
+    private static string NormalizeTheme(string? theme)
+    {
+        return (theme ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "cyan-dark" => "cyan-dark",
+            "blue" => "blue",
+            "blue-dark" => "blue-dark",
+            "green" => "green",
+            "green-dark" => "green-dark",
+            "amber" => "amber",
+            "amber-dark" => "amber-dark",
+            "rose" => "rose",
+            "rose-dark" => "rose-dark",
+            "violet" => "violet",
+            "violet-dark" => "violet-dark",
+            "indigo" => "indigo",
+            "indigo-dark" => "indigo-dark",
+            "magenta" => "magenta",
+            "magenta-dark" => "magenta-dark",
+            "orange" => "orange",
+            "orange-dark" => "orange-dark",
+            "emerald" => "emerald",
+            "emerald-dark" => "emerald-dark",
+            _ => DefaultTheme
+        };
+    }
+
     private static DateTimeOffset NextPasswordChangedAt(DateTimeOffset previous)
     {
         var now = DateTimeOffset.UtcNow;
@@ -1070,6 +1265,26 @@ public sealed class AccountService
         return normalized.Any(char.IsControl)
             ? "Display name contains unsupported control characters."
             : null;
+    }
+
+    private static string? ValidateTheme(string? theme, bool required = false)
+    {
+        if (string.IsNullOrWhiteSpace(theme))
+        {
+            return required ? "Theme is required." : null;
+        }
+
+        var normalized = theme.Trim().ToLowerInvariant();
+        return SupportedThemes.Contains(normalized, StringComparer.Ordinal)
+            ? null
+            : "Theme is invalid.";
+    }
+
+    private bool IsThemeUsedByAnotherUserLocked(string theme, string username)
+    {
+        return _database.Users.Any(x =>
+            !string.Equals(x.Username, username, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(NormalizeTheme(x.Theme), theme, StringComparison.Ordinal));
     }
 
     private static string? ValidateUsername(string username)
@@ -1400,6 +1615,7 @@ public sealed class AccountService
         return new AccountUser(
             user.Username,
             user.DisplayName,
+            user.Theme,
             user.IsAdmin,
             user.IsEnabled,
             user.CreatedAt,
@@ -1613,6 +1829,8 @@ public sealed class AccountService
         public string Username { get; set; } = string.Empty;
 
         public string DisplayName { get; set; } = string.Empty;
+
+        public string Theme { get; set; } = DefaultTheme;
 
         public string PasswordHash { get; set; } = string.Empty;
 

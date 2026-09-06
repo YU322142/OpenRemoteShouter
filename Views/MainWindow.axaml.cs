@@ -1,4 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using RemoteShouter.Models;
 using RemoteShouter.Services;
 
@@ -8,6 +12,7 @@ public partial class MainWindow : Window
 {
     private readonly ShoutServer _server;
     private readonly ShoutDisplayService _displayService;
+    private readonly Bitmap _appLogo;
     private bool _serverActionRunning;
 
     public MainWindow()
@@ -18,6 +23,9 @@ public partial class MainWindow : Window
     public MainWindow(ShoutServer server, ShoutDisplayService displayService)
     {
         InitializeComponent();
+        Icon = new WindowIcon(AppIconFactory.CreateStream());
+        _appLogo = new Bitmap(AppIconFactory.CreateStream());
+        AppLogo.Source = _appLogo;
         _server = server;
         _displayService = displayService;
         _displayService.CurrentMessageChanged += DisplayService_OnCurrentMessageChanged;
@@ -35,6 +43,7 @@ public partial class MainWindow : Window
     private void MainWindow_OnClosed(object? sender, EventArgs e)
     {
         _displayService.CurrentMessageChanged -= DisplayService_OnCurrentMessageChanged;
+        _appLogo.Dispose();
     }
 
     private void DisplayService_OnCurrentMessageChanged(object? sender, ShoutMessage? message)
@@ -51,11 +60,29 @@ public partial class MainWindow : Window
 
     private async void StopButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        if (!await AdminPasswordWindow.ConfirmAsync(_server, this, "确认停止网页服务"))
+        {
+            return;
+        }
+
         await RunServerActionAsync(async () =>
         {
             await _server.StopAsync();
             RefreshStatus();
         });
+    }
+
+    private async void ExitButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (!await AdminPasswordWindow.ConfirmAsync(_server, this, "确认退出 OpenRemoteShouter"))
+        {
+            return;
+        }
+
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.TryShutdown();
+        }
     }
 
     private async void CloseDisplayButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -117,14 +144,12 @@ public partial class MainWindow : Window
 
         try
         {
-            ErrorText.IsVisible = false;
-            ErrorText.Text = string.Empty;
+            SetError(null);
             await action();
         }
         catch (Exception ex)
         {
-            ErrorText.Text = $"\u670d\u52a1\u64cd\u4f5c\u5931\u8d25\uff1a{ex.Message}";
-            ErrorText.IsVisible = true;
+            SetError($"\u670d\u52a1\u64cd\u4f5c\u5931\u8D25\uff1a{ex.Message}");
             RefreshStatus();
         }
         finally
@@ -134,10 +159,19 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshStatus()
+    public void RefreshStatus()
     {
         var status = _server.Status;
         StatusText.Text = status.IsRunning ? "\u8fd0\u884c\u4e2d" : "\u5df2\u505c\u6b62";
+        StatusText.Foreground = status.IsRunning
+            ? new SolidColorBrush(Color.Parse("#107C10"))
+            : new SolidColorBrush(Color.Parse("#B10E1C"));
+        StatusSurface.Background = status.IsRunning
+            ? new SolidColorBrush(Color.Parse("#F1FAF1"))
+            : new SolidColorBrush(Color.Parse("#FDE7E9"));
+        StatusIndicator.Fill = status.IsRunning
+            ? new SolidColorBrush(Color.Parse("#107C10"))
+            : new SolidColorBrush(Color.Parse("#B10E1C"));
         UrlsListBox.ItemsSource = status.Urls;
         StartButton.IsEnabled = !status.IsRunning;
         StopButton.IsEnabled = status.IsRunning;
@@ -146,9 +180,24 @@ public partial class MainWindow : Window
         var statusError = status.Error ?? status.SpeechError;
         if (!string.IsNullOrWhiteSpace(statusError))
         {
-            ErrorText.Text = $"\u670d\u52a1\u72b6\u6001\uff1a{statusError}\nLog: {status.LogFilePath}";
-            ErrorText.IsVisible = true;
+            SetError($"\u670d\u52a1\u72b6\u6001\uff1a{statusError}\nLog: {status.LogFilePath}");
         }
+        else
+        {
+            SetError(null);
+        }
+    }
+
+    public void ShowServiceError(string message)
+    {
+        SetError($"服务操作失败：{message}");
+    }
+
+    private void SetError(string? message)
+    {
+        var hasError = !string.IsNullOrWhiteSpace(message);
+        ErrorText.Text = message ?? string.Empty;
+        ErrorInfoBar.IsVisible = hasError;
     }
 
     private void SetButtonsEnabled(bool enabled)
@@ -158,6 +207,7 @@ public partial class MainWindow : Window
         CopyButton.IsEnabled = enabled;
         TestButton.IsEnabled = enabled;
         CloseDisplayButton.IsEnabled = enabled;
+        ExitButton.IsEnabled = enabled;
     }
 
     private static ShoutServer CreateDesignServer(out ShoutDisplayService displayService)

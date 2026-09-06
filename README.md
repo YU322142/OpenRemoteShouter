@@ -13,6 +13,19 @@ OpenRemoteShouter 是一个局域网远程喊话工具。它在电脑上启动�
 
 </div>
 
+## 0.1.1.0 更新内容（2026-09-06）
+
+这是继 `0.1.0.0` 之后的完整更新，包含 2026 年 9 月 2 日至 9 月 6 日期间的可信中转、移动端、客户端 UI、账户管理和发布工程改动：
+
+- **可信中转与远程初始化**：支持固定 TCP 对端 IP 白名单、HTTPS 校验、一次性高熵初始化令牌和转发头安全处理；默认关闭远程首次初始化，配置不完整时拒绝启动。
+- **FRP 落地文档**：补充 Windows、Linux、macOS 的 `frps`、`frpc`、反向代理和 systemd/launchd/任务计划配置示例，并把可信中转变量加入发布目录的 `run.bat` 与 `run.sh`。
+- **移动端体验**：移动端优先显示喊话表单，优化窄屏布局和页面顺序。
+- **全屏喊话**：统一使用全屏显示，标题和正文采用更明显的非线性进入动画；显示时间跟随实际 TTS 音频时长且至少保留 10 秒；发送成功后可撤回当前显示或再发一条，成功反馈在原页面背景上浮现。
+- **Fluent UI 客户端**：桌面端改用 FluentAvalonia 主题和原生控件，统一按钮内容居中，补齐窗口、托盘图标和右键菜单品牌标识；WebUI 内置 Fluent UI Web Components，不依赖 CDN。
+- **账户与主题色**：支持修改显示名称和主题色，提供 20 个明暗主题；每个账户只能占用一个主题色，管理员不能取消自己的管理员权限、禁用或删除当前账户，普通用户不显示用户管理区域。
+- **退出保护与网络访问**：停止网页服务和退出软件前要求任意启用管理员密码；新增 `OPEN_REMOTE_SHOUTER_ALLOW_LAN` 参数，默认只监听回环地址，显式设为 `1` 后才允许局域网 IP 访问。
+- **发布工程**：继续按平台分别生成 Release 附件，并提供 `SHA256SUMS.txt`；便携版和各平台启动脚本默认不启用可信中转。
+
 
 ## 功能
 
@@ -23,6 +36,8 @@ OpenRemoteShouter 是一个局域网远程喊话工具。它在电脑上启动�
 - 支持 EdgeTTS 中文语音播报。
 - 支持网页表单、JSON API 和表单 POST。
 - 支持 Windows、Linux、macOS 的多架构构建。
+- WebUI 内置 Fluent UI Web Components，发送按钮与成功提示采用从下往上的动效；发送成功后可直接取消当前显示。
+- 提供 20 个可分配给账户的明亮/深色主题色。
 
 ## 软件截图
 
@@ -51,6 +66,10 @@ OpenRemoteShouter 是一个局域网远程喊话工具。它在电脑上启动�
 4. 默认服务只监听本机回环地址；可在本机浏览器初始化，也可按“可信中转”章节显式配置远程初始化。
 
 登录 WebUI 后默认进入喊话页，只显示消息内容和发送按钮。主题色、置顶、语音、说话人、语速、音量以及关闭当前显示等低频选项位于“调试设置”中。每位老师的设置按用户名保存在本地浏览器 Cookie，可从调试设置导出为 JSON，也可在另一台浏览器导入。主题色会作用于目标电脑的动态渐变显示窗口，文字颜色会根据背景亮度自动选择黑色或白色。显示窗口不再提供手动自动关闭计时；启用语音时使用 TTS 返回文件的实际时长并至少保留 10 秒，语音关闭或合成失败时保留 10 秒。
+
+WebUI 控件使用本地内置的 Fluent UI Web Components 资源，不依赖外部 CDN。发送成功后会显示“取消显示”按钮，可中止当前客户端的全屏显示；成功提示和发送按钮使用与客户端一致的上行/渐变动效。创建管理员或新用户时，页面会明确提示：显示名称会显示在客户端喊话标题中。
+
+桌面控制台和托盘菜单中的“停止网页服务”“退出软件”都会要求输入任意一个启用中的管理员账户密码。密码只用于本次本地确认，不会创建 WebUI 会话；系统任务管理器等操作系统级强制结束进程不在软件拦截范围内。
 
 启用远程访问后仍无法访问，请检查防火墙是否放行 `21212` 端口以及证书/监听模式是否配置正确。
 
@@ -284,6 +303,8 @@ curl -fsS https://class.example.test/api/auth/state
 
 如果必须兼容旧的局域网明文部署，需显式设置 `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1` 才会监听所有网卡；启动日志会持续提示风险。此模式下密码、会话 Cookie 和 CSRF 令牌均可能被网络窃听，生产环境不应使用。
 
+如果需要打开局域网使用（包括直接通过本机 IP 访问），可在 `run.bat` 或 `run.sh` 中设置 `OPEN_REMOTE_SHOUTER_ALLOW_LAN=1`。未设置或设为 `0` 时，无论是否配置证书都只监听 `localhost` / `127.0.0.1`；设为 `1` 后才会监听所有网卡。无证书时这会明确开启明文 HTTP 暴露，请优先配置 HTTPS 或使用可信 FRP/Nginx 中转。旧参数 `OPEN_REMOTE_SHOUTER_ALLOW_DIRECT_IP` 和 `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP` 仍兼容，但新部署应使用 `OPEN_REMOTE_SHOUTER_ALLOW_LAN`。
+
 账户数据默认保存到系统用户数据目录的 `accounts.json`。如需指定数据目录，可以设置：
 
 ```bash
@@ -450,7 +471,7 @@ curl --fail-with-body -sS -b "$cookie_file" \
 | `voiceName` | EdgeTTS 语音，如 `zh-CN-XiaoyiNeural` |
 | `speechRate` | 语速，范围 `-100` 到 `100` |
 | `speechVolume` | 音量，范围 `0.0` 到 `1.0` |
-| `theme` | `cyan`、`blue`、`green`、`amber`、`rose`、`violet` |
+| `theme` | `cyan`、`cyan-dark`、`blue`、`blue-dark`、`green`、`green-dark`、`amber`、`amber-dark`、`rose`、`rose-dark`、`violet`、`violet-dark`、`indigo`、`indigo-dark`、`magenta`、`magenta-dark`、`orange`、`orange-dark`、`emerald`、`emerald-dark` |
 
 ## 构建产物
 
