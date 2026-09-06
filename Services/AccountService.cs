@@ -65,6 +65,7 @@ public sealed class AccountService
     private readonly string _dummyPasswordHash;
     private AccountDatabase _database;
     private bool _databaseLoadFailed;
+    private bool _databaseNeedsThemeMigration;
     private long _lastLoginAttemptCleanupTicks;
     private long _lastSessionCleanupTicks;
 
@@ -74,6 +75,19 @@ public sealed class AccountService
         _databasePath = Path.Combine(dataDirectory, "accounts.json");
         _dummyPasswordHash = CreatePasswordHash(RandomToken());
         _database = LoadDatabase();
+        if (!_databaseLoadFailed && _databaseNeedsThemeMigration)
+        {
+            try
+            {
+                SaveDatabase();
+                _databaseNeedsThemeMigration = false;
+            }
+            catch (Exception ex)
+            {
+                AppLogService.Error("Failed to persist account theme migration", ex);
+                _databaseLoadFailed = true;
+            }
+        }
     }
 
     public bool SetupRequired
@@ -1058,6 +1072,17 @@ public sealed class AccountService
                 throw new InvalidDataException(validationError);
             }
 
+            var migration = MigrateLoadedThemes(database!);
+            if (migration.Changed)
+            {
+                _databaseNeedsThemeMigration = true;
+                AppLogService.Info($"Migrated account themes during load. reassigned={migration.Reassigned}, unresolved={migration.Unresolved}");
+                if (migration.Unresolved > 0)
+                {
+                    AppLogService.Info("Some account themes remain duplicated because the database contains more accounts than supported themes.");
+                }
+            }
+
             return database!;
         }
         catch (Exception ex)
@@ -1144,6 +1169,51 @@ public sealed class AccountService
 
         error = string.Empty;
         return true;
+    }
+
+    private static (bool Changed, int Reassigned, int Unresolved) MigrateLoadedThemes(AccountDatabase database)
+    {
+        var usedThemes = new HashSet<string>(StringComparer.Ordinal);
+        var changed = false;
+        var reassigned = 0;
+        var unresolved = 0;
+
+        // Keep the JSON order stable so upgrades do not randomly reshuffle
+        // existing accounts when an older database omitted theme values.
+        foreach (var user in database.Users)
+        {
+            var normalizedTheme = NormalizeTheme(user.Theme);
+            if (usedThemes.Add(normalizedTheme))
+            {
+                if (!string.Equals(user.Theme, normalizedTheme, StringComparison.Ordinal))
+                {
+                    user.Theme = normalizedTheme;
+                    changed = true;
+                }
+
+                continue;
+            }
+
+            var replacement = SupportedThemes.FirstOrDefault(theme => !usedThemes.Contains(theme));
+            if (replacement is null)
+            {
+                unresolved++;
+                if (!string.Equals(user.Theme, normalizedTheme, StringComparison.Ordinal))
+                {
+                    user.Theme = normalizedTheme;
+                    changed = true;
+                }
+
+                continue;
+            }
+
+            user.Theme = replacement;
+            usedThemes.Add(replacement);
+            changed = true;
+            reassigned++;
+        }
+
+        return (changed, reassigned, unresolved);
     }
 
     private void SaveDatabase()

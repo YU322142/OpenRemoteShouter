@@ -548,6 +548,11 @@ jobs:
       actions: read
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
       - name: Download all-platforms artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -564,12 +569,19 @@ jobs:
           mkdir -p release-notes
           unzip -q "$archive" -d release-notes
           test -s "release-notes/${APP_NAME}-all-platforms/SHA256SUMS.md"
+          test -s "CHANGELOG.md"
+          {
+            cat "CHANGELOG.md"
+            printf '\n\n'
+            cat "release-notes/${APP_NAME}-all-platforms/SHA256SUMS.md"
+          } > "release-notes/${APP_NAME}-all-platforms/RELEASE_BODY.md"
+          test -s "release-notes/${APP_NAME}-all-platforms/RELEASE_BODY.md"
 
       - name: Create draft release
         uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
         with:
           draft: true
-          body_path: release-notes/${{ env.APP_NAME }}-all-platforms/SHA256SUMS.md
+          body_path: release-notes/${{ env.APP_NAME }}-all-platforms/RELEASE_BODY.md
           # Publish each platform package as a separate Release asset.  The
           # aggregate archive remains a CI artifact for internal inspection,
           # but is intentionally not attached to the public Release.

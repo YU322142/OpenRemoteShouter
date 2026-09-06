@@ -12,19 +12,6 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
 
 </div>
 
-## 0.1.1.0 release notes (2026-09-06)
-
-This is the complete update since `0.1.0.0`, covering the trusted relay, mobile layout, client UI, account management, and release-engineering work delivered from September 2 through September 6, 2026:
-
-- **Trusted relay and remote setup**: added a fixed TCP-peer allowlist, HTTPS enforcement, a one-time high-entropy setup token, and safe forwarding-header handling. Remote first-run setup is disabled by default and incomplete configuration fails closed at startup.
-- **FRP deployment documentation**: added Windows, Linux, and macOS examples for `frps`, `frpc`, reverse proxies, systemd, launchd, and Task Scheduler, and included trusted-relay variables in the published `run.bat` and `run.sh` launchers.
-- **Mobile experience**: the announcement form is shown first on mobile, with a tighter narrow-screen layout and page order.
-- **Full-screen announcements**: all notices now use the full-screen surface, with more visible nonlinear title and message entrance motion. Display time follows the actual TTS audio duration with a ten-second minimum. After sending, the current display can be cancelled or another announcement can be sent; success feedback floats over the existing page background.
-- **Fluent UI client**: the desktop app now uses FluentAvalonia styling and native controls, centers button content, and includes branded window and tray icons plus the application name in the context menu. The WebUI bundles Fluent UI Web Components locally without a CDN dependency.
-- **Accounts and themes**: display names and themes can be edited, with 20 light/dark themes available. Each account must use a unique theme; administrators cannot remove their own administrator role, disable or delete the current account, and ordinary users do not see user-management content.
-- **Exit protection and network access**: stopping the web service or exiting the app requires the password of any enabled administrator. The new `OPEN_REMOTE_SHOUTER_ALLOW_LAN` setting keeps loopback-only listening by default and enables LAN IP access only when explicitly set to `1`.
-- **Release engineering**: platform packages continue to be published as separate Release assets with `SHA256SUMS.txt`; portable and platform launchers keep trusted relay setup disabled by default.
-
 ## Features
 
 - **Dedicated LoongArch64 Old World ABI 1.0 package.**
@@ -89,6 +76,7 @@ Implemented protections include:
 - WebUI responses include baseline security headers and a Content Security Policy (CSP).
 - Login verification limits failed attempts per source and bounds the number of in-memory limiter and session records.
 - At startup, the account database is checked for file size, structure, user count, and password-hash parameters. A corrupt file is rejected instead of silently returning to setup mode.
+- When upgrading from an older version, missing or duplicate account themes are assigned deterministically to unused themes in the order stored in the account file and written back to `accounts.json`. With more than 20 accounts, uniqueness cannot be guaranteed and remaining duplicates must be resolved manually.
 - TTS cache and log files have size limits. Old files are removed or rotated when limits are reached, preventing repeated requests from filling the disk indefinitely.
 
 If a freshly extracted copy shows “account service unavailable” or unexpectedly shows the login screen, do not keep retrying sign-in. Check the data directory used by the actual process (on Windows the default is `%LOCALAPPDATA%\\OpenRemoteShouter\\accounts.json`), its permissions, integrity, and the log. Upgrades and re-extraction do not clear existing accounts; showing the login screen is normal when a valid account file already exists, while a corrupt or empty `accounts.json` is rejected fail-closed.

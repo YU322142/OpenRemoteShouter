@@ -1307,6 +1307,13 @@ public static class WebUiHtml
       if (element.id === 'result') $('resultRow').classList.remove('hidden');
     }
 
+    function getThemeAwareErrorMessage(error, fallback) {
+      if (error?.status === 409) {
+        return '主题色已被其他用户使用，请选择其他主题色后重试。';
+      }
+      return error?.message || fallback;
+    }
+
     function populateThemeDropdown(dropdown, selectedValue = 'cyan') {
       const listbox = dropdown?.querySelector('fluent-listbox');
       if (!listbox) return;
@@ -1756,7 +1763,10 @@ public static class WebUiHtml
         await loadUsers();
         await loadThemeAvailability();
       } catch (error) {
-        showNotice($('result'), error.message || '用户资料保存失败。', true);
+        showNotice($('usersMessage'), getThemeAwareErrorMessage(error, '用户资料保存失败。'), true);
+        if (error?.status === 409) {
+          await loadThemeAvailability().catch(() => {});
+        }
       }
     }
 
@@ -2060,7 +2070,10 @@ public static class WebUiHtml
         $('profileThemeSwatch').className = `swatch ${state.user.theme}`;
         showNotice($('profileMessage'), '资料已保存。');
       } catch (error) {
-        showNotice($('profileMessage'), error.message || '资料保存失败。', true);
+        showNotice($('profileMessage'), getThemeAwareErrorMessage(error, '资料保存失败。'), true);
+        if (error?.status === 409) {
+          await loadThemeAvailability().catch(() => {});
+        }
       }
     });
 
@@ -2177,7 +2190,10 @@ public static class WebUiHtml
         await loadThemeAvailability();
         showNotice($('usersMessage'), '用户已创建。');
       } catch (error) {
-        showNotice($('usersMessage'), error.message || '用户创建失败。', true);
+        showNotice($('usersMessage'), getThemeAwareErrorMessage(error, '用户创建失败。'), true);
+        if (error?.status === 409) {
+          await loadThemeAvailability().catch(() => {});
+        }
       } finally {
         submitButton.disabled = false;
       }
