@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1.1 - 2026-09-06
 
 - Added deterministic migration for missing or duplicate themes in older `accounts.json` files, persisted on first launch after upgrade.
 - Added visible WebUI feedback when a theme is already assigned to another account, with an availability refresh after the conflict.

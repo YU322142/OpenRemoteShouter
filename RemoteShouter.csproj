@@ -7,9 +7,9 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AssemblyName>OpenRemoteShouter</AssemblyName>
     <RootNamespace>RemoteShouter</RootNamespace>
-    <Version>0.1.1.0</Version>
-    <AssemblyVersion>0.1.1.0</AssemblyVersion>
-    <FileVersion>0.1.1.0</FileVersion>
+    <Version>0.1.1.1</Version>
+    <AssemblyVersion>0.1.1.1</AssemblyVersion>
+    <FileVersion>0.1.1.1</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
