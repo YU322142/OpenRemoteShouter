@@ -2,6 +2,13 @@
 
 ## 0.1.1.1 - 2026-09-06
 
+### 中文
+
+- 新增旧版 `accounts.json` 的主题色迁移：缺失或重复的主题色会在首次升级启动时，按账户文件中的稳定顺序分配到未使用的主题色并写回数据库。
+- 新增主题色冲突提示：当主题色已被其他账户使用时，WebUI 会显示明确提示并刷新可用主题列表。
+
+### English
+
 - Added deterministic migration for missing or duplicate themes in older `accounts.json` files, persisted on first launch after upgrade.
 - Added visible WebUI feedback when a theme is already assigned to another account, with an availability refresh after the conflict.
 
