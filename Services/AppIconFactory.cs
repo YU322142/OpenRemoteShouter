@@ -66,10 +66,10 @@ internal static class AppIconFactory
                         var angle = Math.Atan2(dy, dx);
                         var inRing = radius >= innerRadius && radius <= outerRadius;
                         var absoluteAngle = Math.Abs(angle);
-                        // Keep a small right-hand arc and the large left/main
-                        // arc, leaving two angled breaks between them.
-                        var inRightArc = absoluteAngle <= 0.46;
-                        var inMainArc = absoluteAngle >= 1.03;
+                        // Match the WebUI mark: a 70-degree right arc separated
+                        // from the main ring by two narrow 10-degree breaks.
+                        var inRightArc = absoluteAngle <= 35 * Math.PI / 180;
+                        var inMainArc = absoluteAngle >= 45 * Math.PI / 180;
                         if (inRing && (inRightArc || inMainArc))
                         {
                             coverage++;

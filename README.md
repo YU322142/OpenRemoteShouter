@@ -16,14 +16,16 @@ OpenRemoteShouter 是一个局域网远程喊话工具。它在电脑上启动�
 ## 功能
 
 - **提供 LoongArch64 Old World ABI 1.0 专用构建包。**
-- 局域网网页喊话，默认监听 `21212` 端口。
+- 提供桌面控制台、系统托盘和 WebUI，网页服务使用 `21212` 端口。
+- 默认仅允许本机访问；设置 `OPEN_REMOTE_SHOUTER_ALLOW_LAN=1` 后才允许通过局域网 IP 访问。
 - 支持主题色驱动的全屏动态渐变提示，标题和正文以非线性动画进入。
 - 显示时间按 TTS 实际返回的音频文件时长自动分配，最少显示 10 秒。
-- 支持 EdgeTTS 中文语音播报。
-- 支持网页表单、JSON API 和表单 POST。
+- 支持 EdgeTTS 中文语音播报、说话人选择、语速和音量设置。
+- 支持发送后撤回当前显示或继续发送下一条消息。
+- 支持账户登录、显示名称、20 种明暗主题、管理员用户管理和旧账户主题色迁移。
+- 支持 WebUI 和 JSON HTTP API，状态修改接口带会话与 CSRF 校验。
 - 支持 Windows、Linux、macOS 的多架构构建。
-- WebUI 内置 Fluent UI Web Components，发送按钮与成功提示采用从下往上的动效；发送成功后可直接取消当前显示。
-- 提供 20 个可分配给账户的明亮/深色主题色。
+- 桌面端使用 FluentAvalonia，WebUI 内置 Fluent UI Web Components，不依赖 CDN。
 
 ## 软件截图
 
@@ -41,46 +43,91 @@ OpenRemoteShouter 是一个局域网远程喊话工具。它在电脑上启动�
 ![5](screenshots/5.png)
 
 
-## 使用
+## 快速开始
 
-1. 下载适合当前系统的构建包。
-2. 解压后运行：
-   - Windows：运行 `run.bat` （不建议）或 `OpenRemoteShouter.exe`；`run.bat` 启动后会自动关闭。
-   - Linux/macOS：运行 `./run.sh`，默认后台启动；如需在终端内查看输出，运行 `./run.sh --foreground`。
-   - Portable 包：需要先安装 .NET 8 Runtime，再运行 `run.sh` 或 `run.bat`
-3. 打开控制台窗口或托盘菜单，复制访问地址。
-4. 默认服务只监听本机回环地址；可在本机浏览器初始化，也可按“可信中转”章节显式配置远程初始化。
+### 本机初始化
 
-登录 WebUI 后默认进入喊话页，只显示消息内容和发送按钮。主题色、置顶、语音、说话人、语速、音量以及关闭当前显示等低频选项位于“调试设置”中。每位老师的设置按用户名保存在本地浏览器 Cookie，可从调试设置导出为 JSON，也可在另一台浏览器导入。主题色会作用于目标电脑的动态渐变显示窗口，文字颜色会根据背景亮度自动选择黑色或白色。显示窗口不再提供手动自动关闭计时；启用语音时使用 TTS 返回文件的实际时长并至少保留 10 秒，语音关闭或合成失败时保留 10 秒。
+1. 下载并解压适合当前系统的 Release 构建包。
+2. 启动程序：
+   - Windows：运行 `run.bat`，也可以直接运行包内的 `OpenRemoteShouter.exe`。
+   - Linux/macOS：运行 `./run.sh`；发布包脚本默认后台启动，使用 `./run.sh --foreground` 可在终端查看输出。
+   - Portable 包：先安装 .NET 8 Runtime，再运行包内的 `run.bat` 或 `run.sh`。
+3. 左键单击托盘图标打开控制台，右键单击打开系统托盘菜单；也可以从菜单复制访问地址或执行本机测试。
+4. 在本机打开 `http://localhost:21212/`。首次使用时创建管理员账户，之后使用该账户登录。
 
-WebUI 控件使用本地内置的 Fluent UI Web Components 资源，不依赖外部 CDN。发送成功后会显示“取消显示”按钮，可中止当前客户端的全屏显示；成功提示和发送按钮使用与客户端一致的上行/渐变动效。创建管理员或新用户时，页面会明确提示：显示名称会显示在客户端喊话标题中。
+默认情况下服务只监听 `localhost` / `127.0.0.1`，其他电脑或手机无法直接访问。首次管理员创建也默认只能在本机完成。
 
-桌面控制台和托盘菜单中的“停止网页服务”“退出软件”都会要求输入任意一个启用中的管理员账户密码。密码只用于本次本地确认，不会创建 WebUI 会话；系统任务管理器等操作系统级强制结束进程不在软件拦截范围内。
+### 开启局域网访问
 
-启用远程访问后仍无法访问，请检查防火墙是否放行 `21212` 端口以及证书/监听模式是否配置正确。
+要让同一局域网中的手机或电脑通过本机 IP 访问，必须在**启动程序前**设置：
 
-## 账户与安全
+```text
+OPEN_REMOTE_SHOUTER_ALLOW_LAN=1
+```
 
-首次打开 WebUI 时，需要创建管理员账户。默认只接受本机 `localhost` / `127.0.0.1` 初始化；只有显式配置可信中转、强令牌和 HTTPS 后，远程教师才可以完成初始化。初始化后，WebUI 和喊话 API 都需要登录。
+发布包的 `run.bat` 和 `run.sh` 已包含被注释的配置行，取消对应行的注释后重新启动程序即可。也可以临时启动：
 
-已实现的安全措施：
+```powershell
+# Windows PowerShell
+$env:OPEN_REMOTE_SHOUTER_ALLOW_LAN = "1"
+.\run.bat
+```
+
+```bash
+# Linux/macOS
+OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 ./run.sh --foreground
+```
+
+启用后，桌面控制台的访问地址列表会出现 `http://<局域网IP>:21212/` 或对应的 HTTPS 地址。请先在本机完成管理员初始化，再从其他设备登录。如果仍无法连接，请确认程序已经重启、防火墙已放行 TCP `21212`，且访问的是控制台列出的地址。
+
+> 未配置证书时，开启局域网访问会把密码、会话和喊话内容放在明文 HTTP 中传输。可信网络之外应配置 HTTPS，或使用后文的可信中转方案。
+
+### WebUI 与桌面端操作
+
+登录 WebUI 后默认进入喊话页。置顶、语音、说话人、语速、音量、关闭当前显示以及设置导入/导出位于“调试设置”中；浏览器设置按登录用户名保存在本地 Cookie 中。发送成功后可以撤回当前显示或继续发送下一条消息。
+
+桌面控制台可以查看服务状态和访问地址、复制地址、进行本机显示测试、关闭当前显示以及启动或停止网页服务。托盘左键打开控制台，右键打开菜单。停止网页服务和退出软件前，必须输入任意一个启用中的管理员密码；任务管理器等操作系统级强制结束不在软件拦截范围内。
+
+## 账户与权限
+
+首次打开 WebUI 时，需要从本机创建管理员账户。初始化后，WebUI 和喊话 API 都需要登录；只有显式配置可信中转、HTTPS 和高熵令牌后，才允许经中转进行远程首次初始化。
+
+- 所有启用中的用户都可以修改自己的显示名称、主题色和密码。
+- 显示名称会出现在客户端喊话标题中，喊话主题色由当前登录账户决定，调用 API 时不能冒充其他显示名称或主题色。
+- 20 个明暗主题色为单选，并且不同账户不能使用同一个主题色；冲突时 WebUI 会显示提示并刷新可用选项。
+- 管理员可以创建、编辑、启用、禁用和删除其他用户；普通用户不会看到用户管理区域。
+- 当前管理员不能取消自己的管理员权限、禁用或删除自己的账户，系统始终至少保留一个启用中的管理员。
+- 从旧版本升级时，缺失或重复的主题色会按 `accounts.json` 中的稳定顺序分配到未使用的主题色并自动写回；账户超过 20 个时，剩余重复项需要管理员手动处理。
+
+如果全新解压后页面显示“账户服务不可用”或意外显示登录页，请检查实际运行账户的数据目录、`accounts.json` 的权限与完整性以及日志。Windows 默认账户文件为 `%LOCALAPPDATA%\OpenRemoteShouter\accounts.json`。升级或重新解压不会清空旧账户；损坏或空的账户数据库会被拒绝加载，不会自动重新进入初始化。
+
+### 安全设计
+
+已实现的主要安全措施：
 
 - 密码使用 PBKDF2-SHA256 加随机盐保存，不保存明文密码。
 - 同一来源地址对同一用户名连续失败 5 次会锁定该组合 5 分钟；已存在的账户累计失败 20 次会进入 5 分钟账户级软限流，保护期内每 10 秒最多执行一次真实密码校验，错误尝试返回 429，正确密码可在下一个校验窗口登录并解除账户桶；来源地址还有 100 次失败/5 分钟的来源级上限。账户桶只对已存在账户建立，因此直接暴露到公网时 `401`/`429` 差异可能形成用户名存在性侧信道，建议在可信网关统一响应并做集中限流。限流记录只保存在当前进程内，重启或多实例部署不会共享，不能替代网关/WAF 的集中限流。
 - 登录会话使用 HttpOnly、SameSite=Strict Cookie，并带过期时间。
 - 所有修改类 API 都需要 CSRF 令牌。
 - 修改密码、禁用用户或删除用户会使相关会话失效。
-- 管理员不能禁用或删除自己的当前账户，系统至少保留一个启用的管理员。
+- 当前管理员不能降低、禁用或删除自己的当前账户，系统至少保留一个启用的管理员。
 - 首次管理员初始化默认只能从本机完成；远程初始化必须同时满足固定中转 IP、显式开关、HTTPS 和高熵令牌。
 - WebUI 响应包含基础安全头和 CSP。
 - 登录校验会限制单个来源的失败次数，并限制内存中的限流/会话记录数量。
 - 账户数据库启动时会校验文件大小、结构、用户数量和密码哈希参数，损坏文件会拒绝加载而不会重新进入初始化。
-- 从旧版本升级时，缺失或重复的账户主题色会按账户文件中的稳定顺序自动分配到未使用的主题色，并写回 `accounts.json`；超过 20 个账户时无法继续保证唯一，需要在用户管理中手动处理重复项。
 - TTS 缓存和日志文件都有大小上限，超出时按最旧文件自动清理或轮转，避免磁盘被请求持续占满。
 
-如果全新解压后页面显示“账户服务不可用”或仍显示登录，不要反复尝试登录：先检查实际运行账户的数据目录（Windows 默认是 `%LOCALAPPDATA%\\OpenRemoteShouter\\accounts.json`）以及文件权限、完整性和日志。升级或重新解压不会自动清空旧账户；已有有效账户时显示登录是正常行为，损坏或空的 `accounts.json` 会被安全地拒绝加载。
+## 网络与部署
 
-### 传输安全
+| 模式 | 监听范围 | 适用场景 | 关键配置 |
+| --- | --- | --- | --- |
+| 本机模式（默认） | `localhost` / `127.0.0.1` | 本机初始化、测试或同机反向代理 | 不设置或设置 `OPEN_REMOTE_SHOUTER_ALLOW_LAN=0` |
+| 直接局域网访问 | 所有网卡 | 同一可信局域网中的手机/电脑直接连接 | `OPEN_REMOTE_SHOUTER_ALLOW_LAN=1`，建议同时配置 HTTPS |
+| 可信中转 | 通常保持本机监听 | FRP、Nginx/Caddy、VPN 或其他受控入口 | 配置固定中转 IP；远程首次初始化还需显式开关、HTTPS 和一次性令牌 |
+
+`OPEN_REMOTE_SHOUTER_ALLOW_LAN` 的显式值优先于旧变量。旧参数 `OPEN_REMOTE_SHOUTER_ALLOW_DIRECT_IP` 和 `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP` 仍用于兼容已有部署，但新配置应统一使用 `OPEN_REMOTE_SHOUTER_ALLOW_LAN`。
+
+### HTTPS 与传输安全
 
 未配置证书时，服务默认只监听本机回环地址上的 HTTP，适合首次初始化或本机使用。HTTP 不会加密密码、会话 Cookie 或 CSRF 令牌，不能把“局域网”视为可信网络。需要让其他设备访问时，优先配置 HTTPS PFX 证书：
 
@@ -288,17 +335,34 @@ curl -fsS https://class.example.test/api/auth/state
 
 配置证书后服务只在该端口提供 HTTPS，并会在访问地址中显示 `https://`；Cookie 会自动启用 `Secure` 属性。若改由可信中转终止 TLS，则应用本身可以继续只在本机回环上跑 HTTP，但必须完成上面的白名单配置，并让中转节点正确设置转发头；应用会据此恢复外部 HTTPS 的同源校验和安全 Cookie。若还要让首次初始化也走这个中转，需要同时打开远程初始化开关并配置令牌。
 
-如果必须兼容旧的局域网明文部署，需显式设置 `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1` 才会监听所有网卡；启动日志会持续提示风险。此模式下密码、会话 Cookie 和 CSRF 令牌均可能被网络窃听，生产环境不应使用。
+## 配置参考
 
-如果需要打开局域网使用（包括直接通过本机 IP 访问），可在 `run.bat` 或 `run.sh` 中设置 `OPEN_REMOTE_SHOUTER_ALLOW_LAN=1`。未设置或设为 `0` 时，无论是否配置证书都只监听 `localhost` / `127.0.0.1`；设为 `1` 后才会监听所有网卡。无证书时这会明确开启明文 HTTP 暴露，请优先配置 HTTPS 或使用可信 FRP/Nginx 中转。旧参数 `OPEN_REMOTE_SHOUTER_ALLOW_DIRECT_IP` 和 `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP` 仍兼容，但新部署应使用 `OPEN_REMOTE_SHOUTER_ALLOW_LAN`。
+所有配置都通过环境变量读取，并在程序启动时生效。修改后必须重启 OpenRemoteShouter。布尔值可使用 `1`/`0`、`true`/`false`、`yes`/`no` 或 `on`/`off`。
 
-账户数据默认保存到系统用户数据目录的 `accounts.json`。如需指定数据目录，可以设置：
+| 环境变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| `OPEN_REMOTE_SHOUTER_ALLOW_LAN` | `0` | 设为 `1` 后监听所有网卡，允许通过局域网 IP 直接访问。显式值优先于两个旧兼容参数。 |
+| `OPEN_REMOTE_SHOUTER_ALLOW_DIRECT_IP` | `0` | 旧版局域网开关，仅为兼容已有部署保留。 |
+| `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP` | `0` | 旧版明文 HTTP 局域网开关，仅为兼容已有部署保留。 |
+| `OPEN_REMOTE_SHOUTER_HTTPS_CERT_PATH` | 未设置 | HTTPS PFX 证书路径。 |
+| `OPEN_REMOTE_SHOUTER_HTTPS_CERT_PASSWORD` | 未设置 | PFX 证书密码；建议由服务管理器或密钥存储注入。 |
+| `OPEN_REMOTE_SHOUTER_REQUIRE_HTTPS` | `0` | 设为 `1` 时，缺少证书将直接拒绝启动。 |
+| `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS` | 未设置 | 逗号或分号分隔的固定可信中转 IP，最多 32 个，不接受通配地址。 |
+| `OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP` | `0` | 允许通过可信中转进行远程首次管理员初始化。 |
+| `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN` | 未设置 | 远程首次初始化令牌，需包含 32 至 512 字节。 |
+| `OPEN_REMOTE_SHOUTER_DATA_DIR` | 系统用户数据目录 | `accounts.json` 和默认日志所在的数据目录。 |
+| `OPEN_REMOTE_SHOUTER_LOG_FILE` | 数据目录中的日志文件 | 自定义日志文件路径。 |
+| `OPEN_REMOTE_SHOUTER_LOG_CONSOLE` | 自动 | 强制将日志同时输出到终端。 |
+| `OPEN_REMOTE_SHOUTER_LOG_MAX_BYTES` | `10485760` | 单个日志文件上限，默认 10 MiB。 |
+| `OPEN_REMOTE_SHOUTER_LOG_MAX_FILES` | `3` | 日志轮转文件数量。 |
+| `OPEN_REMOTE_SHOUTER_TTS_CACHE_MAX_BYTES` | `268435456` | TTS 缓存总大小上限，默认 256 MiB。 |
+| `OPEN_REMOTE_SHOUTER_TTS_CACHE_MAX_FILES` | `512` | TTS 缓存文件数量上限。 |
+| `OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT` | `mp3` | EdgeTTS 输出格式；可设为 `wav` 兼容旧环境。 |
+| `OPEN_REMOTE_SHOUTER_AUDIO_PLAYER` | 自动检测 | Linux 下指定音频播放器命令，例如 `ffplay`。 |
+| `OPEN_REMOTE_SHOUTER_SOFTWARE_RENDERING` | `0` | 强制 Avalonia 软件渲染；龙芯旧世界发布脚本默认设为 `1`。 |
+| `OPEN_REMOTE_SHOUTER_X11_ENABLE_IME` | `1` | 控制 X11 输入法；龙芯旧世界发布脚本默认使用 `auto`。 |
 
-```bash
-OPEN_REMOTE_SHOUTER_DATA_DIR=/path/to/data ./OpenRemoteShouter
-```
-
-自定义数据目录和 `OPEN_REMOTE_SHOUTER_LOG_FILE` 指向的父目录必须由运行账户独占，不能放在其他账户可写的共享目录中；Windows 下程序不强制修改 ACL，文件权限依赖目录本身的安全设置。
+账户数据默认保存到系统用户数据目录的 `accounts.json`。自定义数据目录和 `OPEN_REMOTE_SHOUTER_LOG_FILE` 指向的父目录必须由运行账户独占，不能放在其他账户可写的共享目录中；Windows 下程序不强制修改 ACL，文件权限依赖目录本身的安全设置。
 
 ## Linux 语音依赖
 
@@ -398,14 +462,18 @@ OPEN_REMOTE_SHOUTER_X11_ENABLE_IME=1 ./run.sh --foreground
 
 - `GET /`：网页喊话表单
 - `GET /api/auth/state`：当前登录/初始化状态
+- `POST /api/auth/setup`：首次创建管理员账户
 - `POST /api/auth/login`：登录并建立会话
 - `POST /api/auth/logout`：退出当前会话
 - `POST /api/auth/password`：修改当前账户密码
+- `PUT /api/account/profile`：修改当前账户的显示名称和主题色
+- `GET /api/account/themes`：查询当前主题、全部主题和可用主题
 - `GET /api/status`：服务状态
 - `GET /api/voices`：可用语音列表
 - `POST /api/shout`：发送喊话
 - `POST /api/close`：关闭当前显示
-- `GET/POST/PUT/DELETE /api/users`：管理员用户管理
+- `GET /api/users`、`POST /api/users`：管理员查询或创建用户
+- `PUT /api/users/{username}`、`DELETE /api/users/{username}`：管理员修改或删除指定用户
 
 除登录和首次初始化外，修改类 API 需要同时发送登录 Cookie 和 `X-OpenRemoteShouter-CSRF` 令牌。登录响应中的 `state.csrfToken` 就是当前会话令牌。下面是一个不会把密码直接写进命令行参数的 `curl` 示例（需要 `jq`）：
 
@@ -458,7 +526,7 @@ curl --fail-with-body -sS -b "$cookie_file" \
 | `voiceName` | EdgeTTS 语音，如 `zh-CN-XiaoyiNeural` |
 | `speechRate` | 语速，范围 `-100` 到 `100` |
 | `speechVolume` | 音量，范围 `0.0` 到 `1.0` |
-| `theme` | `cyan`、`cyan-dark`、`blue`、`blue-dark`、`green`、`green-dark`、`amber`、`amber-dark`、`rose`、`rose-dark`、`violet`、`violet-dark`、`indigo`、`indigo-dark`、`magenta`、`magenta-dark`、`orange`、`orange-dark`、`emerald`、`emerald-dark` |
+| `theme` | 保留用于兼容旧客户端；服务端始终使用当前登录账户保存的主题色 |
 
 ## 构建产物
 

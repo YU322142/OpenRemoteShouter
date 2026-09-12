@@ -15,14 +15,16 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
 ## Features
 
 - **Dedicated LoongArch64 Old World ABI 1.0 package.**
-- Remote announcements through a LAN web interface, listening on port `21212` by default.
+- Desktop console, system tray, and WebUI served on port `21212`.
+- Loopback-only access by default; set `OPEN_REMOTE_SHOUTER_ALLOW_LAN=1` to allow direct access through a LAN IP address.
 - Theme-driven animated full-screen display with nonlinear title and message entrance.
 - Display time is derived from the actual TTS audio file duration, with a ten-second minimum.
-- Chinese speech playback with EdgeTTS.
-- Web forms, JSON API, and form POST support.
+- EdgeTTS speech playback with voice, rate, and volume controls.
+- Cancel the current display after sending, or continue with another announcement.
+- Account login, editable display names, 20 light/dark themes, administrator user management, and migration of themes from older account files.
+- WebUI and JSON HTTP API with session and CSRF validation for state-changing operations.
 - Multi-architecture builds for Windows, Linux, and macOS.
-- The WebUI bundles Fluent UI Web Components locally; its send and success states use an upward motion, and a successful send can be cancelled immediately.
-- Twenty light/dark theme variants are available for account assignment.
+- The desktop uses FluentAvalonia and the WebUI bundles Fluent UI Web Components locally without a CDN dependency.
 
 ## Screenshots
 
@@ -40,27 +42,65 @@ OpenRemoteShouter is a local-network remote announcement tool. It starts a local
 ![4](screenshots/4.png)
 ![5](screenshots/5.png)
 
-## Usage
+## Quick start
 
-1. Download the build package for your operating system.
-2. Extract it and run:
-   - Windows: run `run.bat` (not recommended) or `OpenRemoteShouter.exe`; `run.bat` exits automatically after starting the program.
-   - Linux/macOS: run `./run.sh`, which starts in the background by default. Use `./run.sh --foreground` to keep output in the terminal.
-   - Portable package: install the .NET 8 Runtime first, then run `run.sh` or `run.bat`.
-3. Open the console window or tray menu and copy the displayed access address.
-4. By default, the service listens only on the local loopback interface. You can initialize it locally, or explicitly configure a trusted relay for remote first-run setup as described below.
+### Local initialization
 
-After login, the WebUI opens on the announcement page and shows only the message field and Send button. Infrequent options such as theme, topmost behavior, speech, voice, rate, volume, and closing the current display are under Debug settings. Each teacher's settings are stored in that teacher's local browser Cookie and can be exported to JSON or imported in another browser. The selected theme is applied to the target animated display window, with black or white text chosen automatically from the background brightness. Manual auto-close timing is no longer exposed: with speech enabled, the window uses the actual TTS file duration and keeps it visible for at least 10 seconds; with speech disabled or synthesis failure, it remains visible for 10 seconds.
+1. Download and extract the Release package for your operating system.
+2. Start the program:
+   - Windows: run `run.bat`, or launch the packaged `OpenRemoteShouter.exe` directly.
+   - Linux/macOS: run `./run.sh`; packaged scripts start in the background by default, while `./run.sh --foreground` keeps output in the terminal.
+   - Portable package: install the .NET 8 Runtime first, then run the included `run.bat` or `run.sh`.
+3. Left-click the tray icon to open the console and right-click it to open the native tray menu. The menu can also copy an access address or run a local display test.
+4. Open `http://localhost:21212/` on the same computer. Create the first administrator account, then sign in.
 
-The WebUI controls use a locally bundled Fluent UI Web Components asset and do not depend on an external CDN. After a successful send, a Cancel display button appears and can stop the current full-screen display; the send and success feedback use motion consistent with the client. When creating an administrator or user, the form explicitly reminds you that the display name appears in the client announcement title.
+By default, the service listens only on `localhost` / `127.0.0.1`, so phones and other computers cannot connect directly. First-time administrator creation is also local-only by default.
 
-The desktop console and tray menu require the password of any enabled administrator before stopping the web service or exiting the software. The password is used only for this local confirmation and does not create a WebUI session; operating-system-level force termination, such as Task Manager, remains outside the application's control.
+### Enable LAN access
 
-If remote access still does not work, check that the firewall allows port `21212` and that the certificate and listener mode are configured correctly.
+To let a phone or computer on the same LAN connect through this computer's IP address, set the following value **before starting the program**:
 
-## Accounts and security
+```text
+OPEN_REMOTE_SHOUTER_ALLOW_LAN=1
+```
 
-The first WebUI visit must create an administrator account. By default, only `localhost` or `127.0.0.1` may initialize it; remote teacher setup requires an explicitly allowlisted relay, HTTPS, and a high-entropy token. After initialization, both the WebUI and announcement APIs require authentication.
+The packaged `run.bat` and `run.sh` files contain a commented configuration line that can be uncommented before restarting. Temporary launch examples:
+
+```powershell
+# Windows PowerShell
+$env:OPEN_REMOTE_SHOUTER_ALLOW_LAN = "1"
+.\run.bat
+```
+
+```bash
+# Linux/macOS
+OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 ./run.sh --foreground
+```
+
+After enabling LAN access, the desktop console lists an `http://<lan-ip>:21212/` address, or its HTTPS equivalent. Complete the first administrator setup locally before signing in from another device. If the address is still unreachable, restart the program, allow TCP port `21212` through the firewall, and use an address shown in the console.
+
+> Without a certificate, LAN mode transmits passwords, sessions, and announcement content over plaintext HTTP. Configure HTTPS or use the trusted relay design below outside a controlled network.
+
+### WebUI and desktop controls
+
+After login, the WebUI opens on the announcement page. Topmost behavior, speech, voice, rate, volume, closing the current display, and settings import/export are under Debug settings. Browser settings are stored per login name in a local Cookie. A successful send can be cancelled or followed by another announcement.
+
+The desktop console shows service status and access addresses, copies addresses, runs a local display test, closes the current display, and starts or stops the web service. Left-clicking the tray icon opens the console; right-clicking opens the menu. Stopping the web service or exiting requires the password of any enabled administrator. Operating-system force termination, such as Task Manager, remains outside the application's control.
+
+## Accounts and permissions
+
+The first WebUI visit must create an administrator account locally. After initialization, both the WebUI and announcement APIs require authentication. Remote first-run setup is available only through an explicitly allowlisted trusted relay with HTTPS and a high-entropy token.
+
+- Every enabled user can change their own display name, theme, and password.
+- The display name appears in the client announcement title. The announcement theme comes from the authenticated account, so API callers cannot impersonate another display name or theme.
+- The 20 light/dark themes are single-choice and unique across accounts. On conflict, the WebUI reports the error and refreshes theme availability.
+- Administrators can create, edit, enable, disable, and delete other users. Ordinary users do not see user management.
+- The current administrator cannot remove their own administrator role, disable their own account, or delete it. At least one enabled administrator is always retained.
+- During upgrade, missing or duplicate themes are assigned deterministically to unused themes in `accounts.json` order and persisted. When there are more than 20 accounts, remaining conflicts require manual administrator cleanup.
+
+If a fresh extraction shows “account service unavailable” or unexpectedly asks for login, check the data directory used by the actual process, the permissions and integrity of `accounts.json`, and the log. The Windows default is `%LOCALAPPDATA%\OpenRemoteShouter\accounts.json`. Upgrading or extracting a new package does not clear existing accounts; a corrupt or empty account database is rejected instead of reopening setup.
+
+### Security design
 
 Implemented protections include:
 
@@ -69,17 +109,24 @@ Implemented protections include:
 - Login sessions use an HttpOnly, SameSite=Strict cookie with an expiration time.
 - All state-changing APIs require a CSRF token.
 - Changing a password, disabling a user, or deleting a user invalidates the affected sessions.
-- An administrator cannot disable or delete the current account, and the system always keeps at least one enabled administrator.
+- The current administrator cannot demote, disable, or delete their own account, and the system always keeps at least one enabled administrator.
 - Initial administrator setup is local-only by default; remote setup requires a fixed relay IP, an explicit opt-in, HTTPS, and a high-entropy token.
 - WebUI responses include baseline security headers and a Content Security Policy (CSP).
 - Login verification limits failed attempts per source and bounds the number of in-memory limiter and session records.
 - At startup, the account database is checked for file size, structure, user count, and password-hash parameters. A corrupt file is rejected instead of silently returning to setup mode.
-- When upgrading from an older version, missing or duplicate account themes are assigned deterministically to unused themes in the order stored in the account file and written back to `accounts.json`. With more than 20 accounts, uniqueness cannot be guaranteed and remaining duplicates must be resolved manually.
 - TTS cache and log files have size limits. Old files are removed or rotated when limits are reached, preventing repeated requests from filling the disk indefinitely.
 
-If a freshly extracted copy shows “account service unavailable” or unexpectedly shows the login screen, do not keep retrying sign-in. Check the data directory used by the actual process (on Windows the default is `%LOCALAPPDATA%\\OpenRemoteShouter\\accounts.json`), its permissions, integrity, and the log. Upgrades and re-extraction do not clear existing accounts; showing the login screen is normal when a valid account file already exists, while a corrupt or empty `accounts.json` is rejected fail-closed.
+## Network and deployment
 
-### Transport security
+| Mode | Listener | Intended use | Key configuration |
+| --- | --- | --- | --- |
+| Local mode (default) | `localhost` / `127.0.0.1` | Local setup, testing, or a same-host reverse proxy | Leave unset or set `OPEN_REMOTE_SHOUTER_ALLOW_LAN=0` |
+| Direct LAN access | All interfaces | Phones and computers on the same controlled LAN | Set `OPEN_REMOTE_SHOUTER_ALLOW_LAN=1`; HTTPS is recommended |
+| Trusted relay | Usually remains loopback-only | FRP, Nginx/Caddy, VPN, or another controlled ingress | Allowlist the fixed relay IP; remote first-run setup also needs an opt-in, HTTPS, and a one-time token |
+
+An explicit `OPEN_REMOTE_SHOUTER_ALLOW_LAN` value takes precedence over the legacy `OPEN_REMOTE_SHOUTER_ALLOW_DIRECT_IP` and `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP` settings. New deployments should use `OPEN_REMOTE_SHOUTER_ALLOW_LAN`.
+
+### HTTPS and transport security
 
 Without a certificate, the service defaults to HTTP on the local loopback interface only. This is suitable for first-time setup or local use. HTTP does not encrypt passwords, session cookies, or CSRF tokens; a "LAN" should not be treated as a trusted network. To allow other devices to connect, prefer an HTTPS PFX certificate:
 
@@ -287,17 +334,34 @@ For deployment scripts that should refuse to start without a certificate, also s
 
 With a certificate configured, the service provides HTTPS on that port and displays `https://` access addresses; cookies automatically receive the `Secure` attribute. If a trusted relay terminates TLS, the app can keep listening on loopback HTTP, but you must apply the allowlist above and have the relay set the forwarding headers correctly; the app will then use the external HTTPS scheme for same-origin checks and secure cookies. Remote first-run setup additionally requires the explicit opt-in and token.
 
-If compatibility with legacy plaintext LAN deployments is required, explicitly set `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP=1` to listen on all interfaces. Startup logs continuously warn about this mode. Passwords, session cookies, and CSRF tokens can be sniffed on the network, so this mode should not be used in production.
+## Configuration reference
 
-To enable LAN use, including direct access through the computer's IP address, set `OPEN_REMOTE_SHOUTER_ALLOW_LAN=1` in `run.bat` or `run.sh`. When unset or set to `0`, the service listens only on `localhost` / `127.0.0.1`, even when a certificate is configured. With `1`, it listens on all interfaces. Without a certificate this explicitly exposes plaintext HTTP, so prefer HTTPS or a trusted FRP/Nginx relay. The legacy names `OPEN_REMOTE_SHOUTER_ALLOW_DIRECT_IP` and `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP` remain supported, but new deployments should use `OPEN_REMOTE_SHOUTER_ALLOW_LAN`.
+All settings are read from environment variables when the application starts. Restart OpenRemoteShouter after changing them. Boolean switches accept `1`/`0`, `true`/`false`, `yes`/`no`, or `on`/`off`.
 
-Account data is stored in `accounts.json` under the system user-data directory by default. To choose another data directory:
+| Environment variable | Default | Purpose |
+| --- | --- | --- |
+| `OPEN_REMOTE_SHOUTER_ALLOW_LAN` | `0` | Listen on all interfaces and allow direct LAN IP access. An explicit value overrides both legacy switches. |
+| `OPEN_REMOTE_SHOUTER_ALLOW_DIRECT_IP` | `0` | Legacy LAN switch retained for compatibility only. |
+| `OPEN_REMOTE_SHOUTER_ALLOW_INSECURE_HTTP` | `0` | Legacy plaintext-HTTP LAN switch retained for compatibility only. |
+| `OPEN_REMOTE_SHOUTER_HTTPS_CERT_PATH` | Unset | Path to the HTTPS PFX certificate. |
+| `OPEN_REMOTE_SHOUTER_HTTPS_CERT_PASSWORD` | Unset | PFX password; inject it through a service manager or secret store when possible. |
+| `OPEN_REMOTE_SHOUTER_REQUIRE_HTTPS` | `0` | Refuse startup without a certificate when set to `1`. |
+| `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS` | Unset | Comma- or semicolon-separated fixed relay IPs, up to 32 entries; wildcard addresses are rejected. |
+| `OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP` | `0` | Allow remote first-administrator setup through a trusted relay. |
+| `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN` | Unset | Remote setup token containing 32 to 512 bytes. |
+| `OPEN_REMOTE_SHOUTER_DATA_DIR` | System user-data directory | Directory for `accounts.json` and the default log. |
+| `OPEN_REMOTE_SHOUTER_LOG_FILE` | Log file under the data directory | Custom log file path. |
+| `OPEN_REMOTE_SHOUTER_LOG_CONSOLE` | Automatic | Force logs to be written to the terminal as well. |
+| `OPEN_REMOTE_SHOUTER_LOG_MAX_BYTES` | `10485760` | Per-log-file limit, 10 MiB by default. |
+| `OPEN_REMOTE_SHOUTER_LOG_MAX_FILES` | `3` | Number of rotated log files. |
+| `OPEN_REMOTE_SHOUTER_TTS_CACHE_MAX_BYTES` | `268435456` | Total TTS cache limit, 256 MiB by default. |
+| `OPEN_REMOTE_SHOUTER_TTS_CACHE_MAX_FILES` | `512` | Maximum number of cached TTS files. |
+| `OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT` | `mp3` | EdgeTTS output format; use `wav` for older environments. |
+| `OPEN_REMOTE_SHOUTER_AUDIO_PLAYER` | Auto-detected | Linux audio-player command, for example `ffplay`. |
+| `OPEN_REMOTE_SHOUTER_SOFTWARE_RENDERING` | `0` | Force Avalonia software rendering; the LoongArch Old World package sets `1`. |
+| `OPEN_REMOTE_SHOUTER_X11_ENABLE_IME` | `1` | Control X11 input methods; the LoongArch Old World package uses `auto`. |
 
-```bash
-OPEN_REMOTE_SHOUTER_DATA_DIR=/path/to/data ./OpenRemoteShouter
-```
-
-The custom data directory and the parent directory of `OPEN_REMOTE_SHOUTER_LOG_FILE` must be private to the service account. Do not place them in a directory writable by other accounts. On Windows, the program does not enforce ACL changes; file permissions depend on the directory security configuration.
+Account data is stored in `accounts.json` under the system user-data directory by default. A custom data directory and the parent directory of `OPEN_REMOTE_SHOUTER_LOG_FILE` must be private to the service account. Do not place them in a directory writable by other accounts. On Windows, the program does not enforce ACL changes; permissions depend on the directory security configuration.
 
 ## Linux audio dependencies
 
@@ -397,14 +461,18 @@ After startup:
 
 - `GET /`: web announcement form.
 - `GET /api/auth/state`: current login and initialization state.
+- `POST /api/auth/setup`: create the first administrator account.
 - `POST /api/auth/login`: log in and create a session.
 - `POST /api/auth/logout`: log out the current session.
 - `POST /api/auth/password`: change the current account password.
+- `PUT /api/account/profile`: change the current account display name and theme.
+- `GET /api/account/themes`: get the current, complete, and available theme lists.
 - `GET /api/status`: service status.
 - `GET /api/voices`: available voices.
 - `POST /api/shout`: send an announcement.
 - `POST /api/close`: close the current display.
-- `GET/POST/PUT/DELETE /api/users`: administrator user management.
+- `GET /api/users` and `POST /api/users`: list or create users as an administrator.
+- `PUT /api/users/{username}` and `DELETE /api/users/{username}`: update or delete a selected user as an administrator.
 
 Except for login and first-time setup, state-changing APIs require both the login cookie and the `X-OpenRemoteShouter-CSRF` token. The `state.csrfToken` value in the login response is the token for the current session. The following `curl` example avoids placing the password directly in command-line arguments and requires `jq`:
 
@@ -457,7 +525,7 @@ Field reference:
 | `voiceName` | EdgeTTS voice, for example `zh-CN-XiaoyiNeural`. |
 | `speechRate` | Speech rate, from `-100` to `100`. |
 | `speechVolume` | Volume, from `0.0` to `1.0`. |
-| `theme` | `cyan`, `cyan-dark`, `blue`, `blue-dark`, `green`, `green-dark`, `amber`, `amber-dark`, `rose`, `rose-dark`, `violet`, `violet-dark`, `indigo`, `indigo-dark`, `magenta`, `magenta-dark`, `orange`, `orange-dark`, `emerald`, or `emerald-dark`. |
+| `theme` | Retained for old clients; the server always uses the theme saved for the authenticated account. |
 
 ## Build artifacts
 
