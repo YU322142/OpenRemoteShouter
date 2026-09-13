@@ -28,6 +28,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="Assets\open-remote-shouter.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+    <Content Include="Assets\open-remote-shouter-wordmark.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
     <Content Include="Assets\fluentui-web-components-all.min.js" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
     <Content Include="Assets\fluentui-web-light-theme.min.js" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
     <Content Include="Assets\FLUENTUI-WEB-COMPONENTS-NOTICE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />

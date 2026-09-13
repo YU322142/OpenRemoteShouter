@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-labelledby="title desc">
+  <title id="title">OpenRemoteShouter</title>
+  <desc id="desc">An open circular ring mark with a short separated arc on the right.</desc>
+  <path fill="#1f1f1f" d="
+    M 88.59 23.32
+    A 47 47 0 0 1 88.59 76.68
+    L 70.07 64.05
+    A 24.5 24.5 0 0 0 70.07 35.95
+    Z
+    M 82.88 82.88
+    A 47 47 0 1 1 82.88 17.12
+    L 67.32 32.68
+    A 24.5 24.5 0 1 0 67.32 67.32
+    Z
+  "/>
+</svg>

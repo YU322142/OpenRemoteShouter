@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 390 80"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">OpenRemoteShouter</title>
+  <desc id="desc">OpenRemoteShouter wordmark with the initial O represented by the open ring logo.</desc>
+  <defs>
+    <path id="open-ring" fill="#1f1f1f" d="
+      M 88.59 23.32
+      A 47 47 0 0 1 88.59 76.68
+      L 70.07 64.05
+      A 24.5 24.5 0 0 0 70.07 35.95
+      Z
+      M 82.88 82.88
+      A 47 47 0 1 1 82.88 17.12
+      L 67.32 32.68
+      A 24.5 24.5 0 1 0 67.32 67.32
+      Z
+    "/>
+  </defs>
+
+  <!-- The O is the brand mark; the remaining letters stay as live text so
+       HarmonyOS Sans SC can be selected by the host operating system. -->
+  <g transform="translate(4 12) scale(0.56)">
+    <use href="#open-ring"/>
+  </g>
+  <text x="68" y="56"
+        fill="#1f1f1f"
+        font-family="HarmonyOS Sans SC, HarmonyOS Sans, sans-serif"
+        font-size="36px"
+        font-weight="500"
+        font-synthesis="none"
+        letter-spacing="0">penRemoteShouter</text>
+</svg>
