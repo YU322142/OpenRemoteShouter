@@ -81,6 +81,16 @@ public partial class App : Application
         var testItem = new NativeMenuItem { Header = "本机测试" };
         testItem.Click += async (_, _) => await ShowTestMessageAsync();
         menu.Items.Add(testItem);
+        var settingsItem = new NativeMenuItem { Header = "启动设置" };
+        settingsItem.Click += async (_, _) =>
+        {
+            ShowMainWindow();
+            if (_mainWindow is not null)
+            {
+                await _mainWindow.ShowStartupSettingsAsync();
+            }
+        };
+        menu.Items.Add(settingsItem);
         menu.Items.Add(new NativeMenuItemSeparator());
 
         var startItem = new NativeMenuItem { Header = "启动网页服务" };
@@ -216,7 +226,8 @@ public partial class App : Application
             return;
         }
 
-        if (!await ConfirmAdministratorAsync("确认退出 OpenRemoteShouter"))
+        if (!_server.SetupRequired
+            && !await ConfirmAdministratorAsync("确认退出 OpenRemoteShouter"))
         {
             return;
         }

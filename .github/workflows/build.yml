@@ -90,6 +90,8 @@ jobs:
 
           cat > "artifacts/$artifact_name/run.bat" << 'SCRIPT'
           @echo off
+          rem Desktop Startup settings defaults to startup-settings.json beside the app.
+          rem The app reads it even when started directly; restart the app to apply changes.
           rem Uncomment OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 for LAN access.
           rem Uncomment the trusted relay lines for remote first-run setup,
           rem then replace the token with at least 32 random bytes.
@@ -194,6 +196,8 @@ jobs:
           if [[ "$rid" == win-* ]]; then
             cat > "$package_root/run.bat" << 'SCRIPT'
           @echo off
+          rem Desktop Startup settings defaults to startup-settings.json beside the app.
+          rem The app reads it even when started directly; restart the app to apply changes.
           rem Uncomment OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 for LAN access.
           rem Uncomment the trusted relay lines for remote first-run setup,
           rem then replace the token with at least 32 random bytes.

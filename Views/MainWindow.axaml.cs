@@ -14,6 +14,7 @@ public partial class MainWindow : Window
     private readonly ShoutDisplayService _displayService;
     private readonly Bitmap _appLogo;
     private bool _serverActionRunning;
+    private bool _settingsDialogOpen;
 
     public MainWindow()
         : this(CreateDesignServer(out var displayService), displayService)
@@ -58,6 +59,46 @@ public partial class MainWindow : Window
         await StartServerAsync();
     }
 
+    private async void StartupSettingsButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        await ShowStartupSettingsAsync();
+    }
+
+    public async Task ShowStartupSettingsAsync()
+    {
+        if (_settingsDialogOpen || _serverActionRunning)
+        {
+            return;
+        }
+
+        _settingsDialogOpen = true;
+        StartupSettingsButton.IsEnabled = false;
+        try
+        {
+            if (!_server.SetupRequired
+                && !await AdminPasswordWindow.ConfirmAsync(_server, this, "确认更改启动设置"))
+            {
+                return;
+            }
+
+            var dialog = new StartupSettingsWindow(new StartupSettingsService());
+            if (await dialog.ShowDialog<bool>(this))
+            {
+                SettingsSavedInfoBar.IsVisible = true;
+                SetError(null);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetError($"无法打开启动设置：{ex.Message}");
+        }
+        finally
+        {
+            _settingsDialogOpen = false;
+            StartupSettingsButton.IsEnabled = !_serverActionRunning;
+        }
+    }
+
     private async void StopButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (!await AdminPasswordWindow.ConfirmAsync(_server, this, "确认停止网页服务"))
@@ -74,7 +115,8 @@ public partial class MainWindow : Window
 
     private async void ExitButton_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (!await AdminPasswordWindow.ConfirmAsync(_server, this, "确认退出 OpenRemoteShouter"))
+        if (!_server.SetupRequired
+            && !await AdminPasswordWindow.ConfirmAsync(_server, this, "确认退出 OpenRemoteShouter"))
         {
             return;
         }
@@ -208,6 +250,7 @@ public partial class MainWindow : Window
         TestButton.IsEnabled = enabled;
         CloseDisplayButton.IsEnabled = enabled;
         ExitButton.IsEnabled = enabled;
+        StartupSettingsButton.IsEnabled = enabled && !_settingsDialogOpen;
     }
 
     private static ShoutServer CreateDesignServer(out ShoutDisplayService displayService)

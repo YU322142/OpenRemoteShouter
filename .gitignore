@@ -6,3 +6,7 @@ output/
 .idea/
 *.user
 *.suo
+startup-settings.json
+startup-settings.json.bak
+startup-settings-location.json
+startup-settings-location.json.bak

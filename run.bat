@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+rem Desktop Startup settings defaults to startup-settings.json beside the app.
+rem The app reads it even when started directly; restart the app to apply changes.
 rem For trusted FRP/reverse-proxy setup, uncomment all three lines and replace
 rem the token with at least 32 random bytes. These variables belong to the app.
 rem To allow LAN access, including direct access through the computer's IP,

@@ -64,7 +64,7 @@ To let a phone or computer on the same LAN connect through this computer's IP ad
 OPEN_REMOTE_SHOUTER_ALLOW_LAN=1
 ```
 
-The packaged `run.bat` and `run.sh` files contain a commented configuration line that can be uncommented before restarting. Temporary launch examples:
+Open Startup settings (启动设置) from the desktop console or tray menu, enable LAN access under Network access, and save. Fully exit and restart the program. Settings default to the application directory, with a custom folder also available, and load when starting the program directly, automatically through CI, or through `run.bat` / `run.sh`. The packaged scripts also retain commented environment-variable settings; when no local configuration exists, these can be enabled before launching through the script. Temporary launch examples:
 
 ```powershell
 # Windows PowerShell
@@ -85,7 +85,15 @@ After enabling LAN access, the desktop console lists an `http://<lan-ip>:21212/`
 
 After login, the WebUI opens on the announcement page. Topmost behavior, speech, voice, rate, volume, closing the current display, and settings import/export are under Debug settings. Browser settings are stored per login name in a local Cookie. A successful send can be cancelled or followed by another announcement.
 
-The desktop console shows service status and access addresses, copies addresses, runs a local display test, closes the current display, and starts or stops the web service. Left-clicking the tray icon opens the console; right-clicking opens the menu. Stopping the web service or exiting requires the password of any enabled administrator. Operating-system force termination, such as Task Manager, remains outside the application's control.
+The desktop console shows service status and access addresses, copies addresses, runs a local display test, closes the current display, and starts or stops the web service. Left-clicking the tray icon opens the console; right-clicking opens the menu. Stopping the web service requires the password of any enabled administrator. Exiting is allowed before the first administrator is created; afterward, exiting also requires an administrator password. Operating-system force termination, such as Task Manager, remains outside the application's control.
+
+Startup settings provides Network access, Save location, Trusted relay, and HTTPS tabs on every platform for the configuration location, LAN access, relay IPs, remote first-run setup and its token, the PFX certificate path and password, and the HTTPS requirement. It includes random setup-token generation and a certificate file picker. Opening settings requires an administrator password once an administrator exists; before initial setup, you can configure settings, exit, and restart directly.
+
+Choose Application directory (default) or Custom folder as the save location; a folder picker is available, and the filename is always `startup-settings.json`. A custom location is recorded in `startup-settings-location.json` beside the EXE / DLL, so direct EXE launches and CI auto-start can find the configuration. Keep this location record with the application. Saving does not change system environment variables. Overwriting an existing configuration backs it up as `startup-settings.json.bak` in the selected directory; the first save creates no backup, and changing locations does not delete the previous configuration. The dialog shows the full configuration path. An unwritable configuration or application directory causes an error instead of falling back to the C drive.
+
+Fully exit and restart the program to apply changes; stopping and starting the web service does not reload these settings. Saved values override the corresponding launcher or system environment variables, so direct EXE launches and CI auto-start use the same settings.
+
+For example, installing in `D:\OpenRemoteShouter\` and selecting Application directory keeps startup settings there, suitable for classrooms where Deep Freeze restores the C drive. With a custom location, both the configuration and the location record beside the application must reside on persistent paths excluded from restoration. With the default location, copy the application folder and configuration together to deploy to other classrooms. With a custom location, also retain the location record and ensure its target path is available; adjust relay IPs, setup tokens, and certificate paths as needed. Account and log directories still follow the configuration reference below. Passwords and tokens are masked in the dialog but stored as plaintext in the configuration and potentially its backup. Keep both files private.
 
 ## Accounts and permissions
 
@@ -223,7 +231,7 @@ export OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP=1
 export OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN='at-least-32-random-bytes'
 ```
 
-Prefer editing `run.bat` (Windows) or `run.sh` (Linux/macOS) beside the published application: uncomment the three relay settings, replace `REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES`, and launch the app through that script. They are commented by default so a normal local deployment cannot enable remote setup accidentally. `frpc` reads only `frpc.toml`; do not put `OPEN_REMOTE_SHOUTER_*` variables in the FRP config.
+Enter these values in the Trusted relay tab of Startup settings, save, and fully exit and restart the application. Alternatively, edit `run.bat` (Windows) or `run.sh` (Linux/macOS) beside the published application: uncomment the three relay settings, replace `REPLACE_WITH_AT_LEAST_32_RANDOM_BYTES`, and launch through that script. Values already saved in `startup-settings.json` take priority over the corresponding environment variables. Script settings are commented by default so a normal local deployment cannot enable remote setup accidentally. `frpc` reads only `frpc.toml`; do not put `OPEN_REMOTE_SHOUTER_*` variables in the FRP config.
 
 The following steps are split by operating system. Download the matching FRP release binaries and keep `frps` and `frpc` on the same FRP version.
 
@@ -336,7 +344,7 @@ With a certificate configured, the service provides HTTPS on that port and displ
 
 ## Configuration reference
 
-All settings are read from environment variables when the application starts. Restart OpenRemoteShouter after changing them. Boolean switches accept `1`/`0`, `true`/`false`, `yes`/`no`, or `on`/`off`.
+Settings are read when the application starts; fully restart OpenRemoteShouter after changing them. Startup settings saves LAN, relay, and HTTPS configuration as `startup-settings.json` in the application directory by default, or in a custom folder recorded by `startup-settings-location.json` beside the application. These values override the seven corresponding environment variables below; environment variables apply when no local configuration has been saved. Other settings continue to use environment variables. Boolean environment variables accept `1`/`0`, `true`/`false`, `yes`/`no`, or `on`/`off`.
 
 | Environment variable | Default | Purpose |
 | --- | --- | --- |

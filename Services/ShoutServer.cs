@@ -81,6 +81,8 @@ public sealed class ShoutServer
         return _accountService.VerifyAnyAdministratorPassword(password);
     }
 
+    public bool SetupRequired => _accountService.SetupRequired;
+
     public async Task StartAsync()
     {
         if (_app is not null)

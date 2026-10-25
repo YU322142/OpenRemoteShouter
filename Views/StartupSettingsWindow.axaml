@@ -1,0 +1,130 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RemoteShouter.Views.StartupSettingsWindow"
+        Title="启动设置"
+        Width="740" Height="690"
+        MinWidth="580" MinHeight="500"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Background="#F5F7FB">
+    <Border Padding="24,20" Background="White" BorderBrush="#D7DDE8" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="8">
+        <TextBlock Text="启动设置" FontSize="24" FontWeight="SemiBold" />
+        <TextBlock Text="保存后，请退出并重新启动软件。直接打开程序或由 CI 自动唤起时，都会读取这些设置。"
+                   TextWrapping="Wrap" Foreground="#616161" />
+        <TextBlock x:Name="SettingsPathText" FontSize="12" Foreground="#616161" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <TabControl x:Name="SettingsTabs" Grid.Row="1" Margin="24,12,24,0">
+      <TabItem Header="网络访问">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="0,20,8,16" Spacing="16">
+            <TextBlock Text="允许其他设备连接" FontSize="18" FontWeight="SemiBold" />
+            <ToggleSwitch x:Name="AllowLanToggle" Content="允许通过局域网 IP 访问"
+                          OnContent="已开启" OffContent="已关闭" />
+            <TextBlock Text="关闭时仅监听本机地址；开启后监听所有网卡，让手机或其他电脑通过本机 IP 访问 21212 端口。"
+                       TextWrapping="Wrap" Foreground="#616161" />
+            <Border Padding="14" Background="#FFF4CE" CornerRadius="6">
+              <TextBlock Text="未配置 HTTPS 时，密码和喊话内容将通过明文 HTTP 传输。请在可信网络中使用，或配置 HTTPS / 可信中转。"
+                         TextWrapping="Wrap" Foreground="#775B00" />
+            </Border>
+            <TextBlock Text="建议先在本机完成管理员初始化，再开放给其他设备。防火墙需要允许 TCP 21212 端口。"
+                       TextWrapping="Wrap" Foreground="#616161" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="保存位置">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="0,20,8,16" Spacing="14">
+            <TextBlock Text="配置保存位置" FontSize="18" FontWeight="SemiBold" />
+            <RadioButton x:Name="DefaultLocationRadioButton" GroupName="SettingsLocation"
+                         Content="程序目录（推荐，便于整包复制）" IsCheckedChanged="LocationChoice_OnChanged" />
+            <RadioButton x:Name="CustomLocationRadioButton" GroupName="SettingsLocation"
+                         Content="自定义文件夹" IsCheckedChanged="LocationChoice_OnChanged" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox x:Name="CustomSettingsFolderBox" Watermark="例如：D:\OpenRemoteShouterConfig"
+                       AutomationProperties.Name="配置保存文件夹" TextChanged="CustomSettingsFolderBox_OnTextChanged" />
+              <Button x:Name="BrowseSettingsFolderButton" Grid.Column="1" Margin="8,0,0,0"
+                      Content="选择文件夹…" Click="BrowseSettingsFolderButton_OnClick" />
+            </Grid>
+            <TextBlock Text="配置文件名为 startup-settings.json。修改保存位置时，会将当前设置保存到新位置，原配置文件会保留。"
+                       TextWrapping="Wrap" Foreground="#616161" />
+            <Border Padding="14" Background="#F5F9FF" CornerRadius="6">
+              <TextBlock Text="使用冰点还原时，请选择不会被还原的磁盘（例如 D 盘）。程序目录还会保存位置记录，也需要允许写入并在重启后保留。"
+                         TextWrapping="Wrap" Foreground="#385271" />
+            </Border>
+            <TextBlock x:Name="LocationFilePathText" FontSize="12" Foreground="#616161" TextWrapping="Wrap" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="可信中转">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="0,20,8,16" Spacing="12">
+            <TextBlock Text="可信中转 IP" FontWeight="SemiBold" />
+            <TextBox x:Name="TrustedProxyIpsBox" Watermark="例如：127.0.0.1; 192.168.1.10"
+                     AutomationProperties.Name="可信中转 IP" />
+            <TextBlock Text="填写程序实际看到的中转 TCP 对端 IP，多个地址用逗号或分号分隔，最多 32 个。不接受域名、网段或通配地址。"
+                       TextWrapping="Wrap" FontSize="12" Foreground="#616161" />
+            <ToggleSwitch x:Name="AllowTrustedProxySetupToggle" Margin="0,6,0,0"
+                          Content="允许通过可信中转首次创建管理员"
+                          OnContent="已开启" OffContent="已关闭" />
+            <TextBlock Text="仅在尚未创建管理员时使用。需要配置可信中转 IP，并由中转提供 HTTPS。"
+                       TextWrapping="Wrap" FontSize="12" Foreground="#616161" />
+            <TextBlock Text="远程初始化令牌" FontWeight="SemiBold" />
+            <TextBox x:Name="SetupTokenBox" PasswordChar="●" Watermark="32 至 512 字节的随机令牌"
+                     AutomationProperties.Name="远程初始化令牌" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="生成随机令牌" Click="GenerateTokenButton_OnClick" />
+              <Button Content="复制令牌" Click="CopyTokenButton_OnClick" />
+              <CheckBox x:Name="ShowTokenCheckBox" Content="显示令牌" Click="ShowTokenCheckBox_OnClick" />
+            </StackPanel>
+            <TextBlock x:Name="TokenStatusText" FontSize="12" Foreground="#0F6CBD" TextWrapping="Wrap" />
+            <TextBlock Text="将令牌填入远程初始化页面。令牌只用于首次初始化，与 FRP 的连接令牌不同。"
+                       TextWrapping="Wrap" FontSize="12" Foreground="#616161" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="HTTPS">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="0,20,8,16" Spacing="12">
+            <TextBlock Text="PFX / PKCS#12 证书" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox x:Name="CertificatePathBox" Watermark="选择包含私钥的 .pfx 或 .p12 文件"
+                       AutomationProperties.Name="HTTPS 证书路径" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Content="浏览…" Click="BrowseCertificateButton_OnClick" />
+            </Grid>
+            <TextBlock Text="证书密码" FontWeight="SemiBold" />
+            <TextBox x:Name="CertificatePasswordBox" PasswordChar="●" Watermark="无密码时留空"
+                     AutomationProperties.Name="HTTPS 证书密码" />
+            <CheckBox x:Name="ShowCertificatePasswordCheckBox" Content="显示密码"
+                      Click="ShowCertificatePasswordCheckBox_OnClick" />
+            <ToggleSwitch x:Name="RequireHttpsToggle" Content="要求使用本机 HTTPS 证书"
+                          OnContent="已开启" OffContent="已关闭" />
+            <TextBlock Text="开启后，未配置证书将无法启动。配置证书后，本程序将在 21212 端口提供 HTTPS；若由可信中转处理 HTTPS，可留空本机证书。"
+                       TextWrapping="Wrap" Foreground="#616161" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+
+    <Border Grid.Row="2" Padding="24,16" Background="White" BorderBrush="#D7DDE8" BorderThickness="0,1,0,0">
+      <StackPanel Spacing="12">
+        <Border x:Name="ErrorBorder" IsVisible="False" Padding="12,8" Background="#FDE7E9" CornerRadius="6">
+          <TextBlock x:Name="ErrorText" Foreground="#8A1C1C" TextWrapping="Wrap" />
+        </Border>
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="覆盖已有配置时保存 .bak 备份。配置及备份可能含令牌和密码，请妥善保管。" FontSize="12" Foreground="#616161"
+                     TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button Content="取消" IsCancel="True" Click="CancelButton_OnClick" />
+            <Button x:Name="SaveButton" Content="保存启动设置" Classes="accent" Click="SaveButton_OnClick" />
+          </StackPanel>
+        </Grid>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

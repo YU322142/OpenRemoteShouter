@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.2.0 - 2026-10-25
+
+### 中文
+
+- 新增跨平台桌面控制台和托盘“启动设置”入口，可配置局域网访问、可信中转、远程初始化令牌及 HTTPS 证书。
+- 支持将 `startup-settings.json` 保存在程序目录或自定义文件夹，便于在 C 盘有冰点还原的教室中部署到 D 盘。自定义路径通过程序目录中的 `startup-settings-location.json` 记录，部署时需一并保留。
+- 程序启动时自动读取配置，直接打开程序或由 CI 自动唤起均可生效，不修改系统环境变量；保存后需要完全退出并重新启动软件。
+- 增加原子保存、覆盖备份和外部修改冲突检测，并校验可信中转 IP、初始化令牌及 PFX 证书，减少无效配置导致的启动失败。
+- 修复首次创建管理员前无法正常退出的问题，便于保存首次部署设置后重启；创建管理员后仍需密码确认退出。
+
+### English
+
+- Added cross-platform desktop and tray Startup settings for LAN access, trusted relays, remote setup tokens, and HTTPS certificates.
+- Added a choice of application directory or custom folder for `startup-settings.json`, supporting D-drive classroom deployments where Deep Freeze restores the C drive. Custom paths are recorded in `startup-settings-location.json` beside the application; retain this file when deploying.
+- Load saved settings automatically at startup, including direct launches and CI auto-start, without changing system environment variables. Fully exit and restart the application after saving.
+- Added atomic saves, overwrite backups, external-change conflict detection, and validation of relay IPs, setup tokens, and PFX certificates to reduce startup failures caused by invalid settings.
+- Allowed exiting before the first administrator is created so initial deployment settings can be applied by restarting. Exiting still requires administrator confirmation after setup.
+
 ## 0.1.1.1 - 2026-09-12
 
 ### 中文

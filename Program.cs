@@ -28,11 +28,13 @@ internal static class Program
             eventArgs.SetObserved();
         };
 
-        AppLogService.Info(
-            $"Application starting. os={Environment.OSVersion}, processPath={Environment.ProcessPath}, logFile={AppLogService.LogFilePath}");
-
         try
         {
+            new StartupSettingsService().ApplySavedSettingsToEnvironment();
+
+            AppLogService.Info(
+                $"Application starting. os={Environment.OSVersion}, processPath={Environment.ProcessPath}, logFile={AppLogService.LogFilePath}");
+
             BuildAvaloniaApp()
                 .StartWithClassicDesktopLifetime(args);
 
