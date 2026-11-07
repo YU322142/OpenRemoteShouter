@@ -346,7 +346,10 @@ public sealed class ShoutServer
         {
             if (!_accountService.IsDatabaseAvailable)
             {
-                return ApiError("Accounts database could not be loaded.", StatusCodes.Status503ServiceUnavailable);
+                return ApiError(
+                    "Accounts database could not be loaded.",
+                    StatusCodes.Status503ServiceUnavailable,
+                    AccountService.DatabaseLoadError);
             }
 
             return Results.Json(new { ok = true, state = BuildAuthState(context) });
@@ -359,21 +362,24 @@ public sealed class ShoutServer
             {
                 return ApiError(
                     "Trusted relay initial setup is disabled.",
-                    StatusCodes.Status403Forbidden);
+                    StatusCodes.Status403Forbidden,
+                    "可信中转的远程初始化未开启。请在运行软件的电脑上完成初始化。如果本机地址也被列为可信中转，请先从启动设置中移除该地址并重启。");
             }
 
             if (trustedProxyRequest && !context.Request.IsHttps)
             {
                 return ApiError(
                     "Trusted relay initial setup requires HTTPS.",
-                    StatusCodes.Status403Forbidden);
+                    StatusCodes.Status403Forbidden,
+                    "可信中转的远程初始化需要 HTTPS。请打开中转的 HTTPS 地址，或在运行软件的电脑上进行本机初始化。");
             }
 
             if (!trustedProxyRequest && !IsLocalRequest(context))
             {
                 return ApiError(
                     "Initial admin setup must be completed from this computer or a trusted relay.",
-                    StatusCodes.Status403Forbidden);
+                    StatusCodes.Status403Forbidden,
+                    "请在运行 OpenRemoteShouter 的电脑上，从托盘打开控制台并使用其中的 localhost 或本机 IP 地址。通过中转初始化时，请使用已启用远程初始化的可信中转 HTTPS 地址。");
             }
 
             var requestGuard = RequireSameOriginJson(context);
@@ -393,7 +399,8 @@ public sealed class ShoutServer
             {
                 return ApiError(
                     "A valid trusted relay setup token is required.",
-                    StatusCodes.Status403Forbidden);
+                    StatusCodes.Status403Forbidden,
+                    "远程初始化令牌缺失或无效。请在页面中填写启动设置中的远程初始化令牌。");
             }
 
             if (trustedProxyRequest && Volatile.Read(ref _trustedProxySetupConsumed) != 0)
@@ -715,9 +722,11 @@ public sealed class ShoutServer
         return null;
     }
 
-    private static IResult ApiError(string error, int statusCode)
+    private static IResult ApiError(string error, int statusCode, string? message = null)
     {
-        return Results.Json(new { ok = false, error }, statusCode: statusCode);
+        return message is null
+            ? Results.Json(new { ok = false, error }, statusCode: statusCode)
+            : Results.Json(new { ok = false, error, message }, statusCode: statusCode);
     }
 
     private static IResult? RequireSameOriginJson(HttpContext context)
@@ -826,23 +835,37 @@ public sealed class ShoutServer
 
     private static bool IsLocalRequest(HttpContext context)
     {
-        var remoteAddress = GetOriginalRemoteAddress(context);
-        if (remoteAddress is null || !IPAddress.IsLoopback(remoteAddress))
+        if (HadForwardingHeaders(context))
         {
             return false;
         }
 
-        // A browser can reach a loopback listener through a DNS name whose
-        // address is rebound to 127.0.0.1. Accept only an explicit loopback
-        // host for the unauthenticated local setup path.
-        return IsLoopbackHost(context.Request.Host.Host) && !HadForwardingHeaders(context);
+        var remoteAddress = GetOriginalRemoteAddress(context);
+        var localAddress = context.Connection.LocalIpAddress;
+        if (remoteAddress is null || localAddress is null)
+        {
+            return false;
+        }
+
+        var normalizedRemoteAddress = NormalizeAddress(remoteAddress);
+        var normalizedLocalAddress = NormalizeAddress(localAddress);
+        var host = context.Request.Host.Host;
+        if (IPAddress.IsLoopback(normalizedRemoteAddress))
+        {
+            return IPAddress.IsLoopback(normalizedLocalAddress) && IsLoopbackHost(host);
+        }
+
+        // Require the exact local socket address and a literal Host to exclude DNS rebinding.
+        return normalizedRemoteAddress.Equals(normalizedLocalAddress)
+               && IPAddress.TryParse(host, out var hostAddress)
+               && NormalizeAddress(hostAddress).Equals(normalizedLocalAddress);
     }
 
     private static bool IsLoopbackHost(string host)
     {
         return host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
                || (IPAddress.TryParse(host, out var hostAddress)
-                   && IPAddress.IsLoopback(hostAddress));
+                   && IPAddress.IsLoopback(NormalizeAddress(hostAddress)));
     }
 
     private static void ApplySecurityHeaders(HttpContext context, string nonce)

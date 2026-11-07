@@ -13,6 +13,7 @@ public sealed class AccountService
 {
     public const string SessionCookieName = "ors_session";
     public const string CsrfHeaderName = "X-OpenRemoteShouter-CSRF";
+    public const string DatabaseLoadError = "账户数据无法读取。请检查数据目录和 accounts.json 的访问权限。全新安装如发现空的 accounts.json，可移走该文件后重启。已有账户请恢复之前的数据目录或备份。";
 
     private const int PasswordHashIterations = 600_000;
     private const int SaltBytes = 16;
@@ -1045,9 +1046,9 @@ public sealed class AccountService
 
     private AccountDatabase LoadDatabase()
     {
-        EnsureDataDirectory();
         try
         {
+            EnsureDataDirectory();
             if (IsReparsePoint(_databasePath))
             {
                 throw new InvalidDataException("Accounts database must be a regular file.");
@@ -1816,36 +1817,21 @@ public sealed class AccountService
     private static void EnsureDataDirectory()
     {
         var dataDirectory = AppLogService.DataDirectory;
-        Directory.CreateDirectory(dataDirectory);
+        if (OperatingSystem.IsWindows())
+        {
+            Directory.CreateDirectory(dataDirectory);
+        }
+        else
+        {
+            // Apply a private mode when creating the directory, and leave existing folder permissions intact.
+            Directory.CreateDirectory(
+                dataDirectory,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
         if (IsReparsePoint(dataDirectory))
         {
             throw new InvalidDataException("Accounts data directory must not be a reparse point.");
-        }
-
-        TryApplyPrivateDirectoryPermissions(dataDirectory);
-    }
-
-    private static void TryApplyPrivateDirectoryPermissions(string path)
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
-        try
-        {
-            if (IsReparsePoint(path))
-            {
-                return;
-            }
-
-            File.SetUnixFileMode(
-                path,
-                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        }
-        catch
-        {
-            // Best-effort hardening only.
         }
     }
 

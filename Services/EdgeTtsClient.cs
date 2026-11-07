@@ -15,6 +15,7 @@ public sealed class EdgeTtsClient
     public const string Mp3OutputFormat = "audio-24khz-48kbitrate-mono-mp3";
     public const string WavOutputFormat = "riff-24khz-16bit-mono-pcm";
     private const string OutputFormatEnvironmentVariable = "OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT";
+    private const string SynthesisHost = "api.msedgeservices.com";
     private const int MaximumWebSocketMessageBytes = 16 * 1024 * 1024;
     public const int MaximumAudioBytes = 16 * 1024 * 1024;
 
@@ -64,8 +65,8 @@ public sealed class EdgeTtsClient
         ConfigureWebSocket(ws);
 
         var uri = new Uri(
-            "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1" +
-            $"?TrustedClientToken={TrustedClientToken}" +
+            $"wss://{SynthesisHost}/tts/cognitiveservices/websocket/v1" +
+            $"?Ocp-Apim-Subscription-Key={TrustedClientToken}" +
             $"&ConnectionId={requestId}" +
             $"&Sec-MS-GEC={GenerateSecMsGecToken()}" +
             $"&Sec-MS-GEC-Version=1-{ChromiumVersion}");
@@ -85,7 +86,7 @@ public sealed class EdgeTtsClient
     {
         ws.Options.Cookies = new CookieContainer();
         ws.Options.Cookies.SetCookies(
-            new Uri("https://speech.platform.bing.com"),
+            new Uri($"https://{SynthesisHost}"),
             $"muid={Guid.NewGuid().ToString().ToUpperInvariant().Replace("-", string.Empty)};");
         ws.Options.HttpVersion = HttpVersion.Version11;
         ws.Options.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
@@ -186,6 +187,12 @@ public sealed class EdgeTtsClient
 
         if (audio.Count == 0)
         {
+            if (ws.CloseStatus == WebSocketCloseStatus.InvalidPayloadData
+                && ws.CloseStatusDescription?.StartsWith("Unsupported Edge output format:", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                throw new OutputFormatRejectedException(ws.CloseStatusDescription);
+            }
+
             throw new InvalidOperationException(
                 "EdgeTTS returned no audio data. "
                 + $"state={ws.State}, closeStatus={ws.CloseStatus}, binaryMessages={binaryMessages}, textMessages={string.Join(" | ", textMessages)}");
@@ -308,4 +315,6 @@ public sealed class EdgeTtsClient
         value = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
         return value.Length <= 500 ? value : value[..500] + "...";
     }
+
+    internal sealed class OutputFormatRejectedException(string message) : InvalidOperationException(message);
 }

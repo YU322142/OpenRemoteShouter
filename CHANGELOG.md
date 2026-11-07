@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.2.1 - 2026-11-07
+
+### 中文
+
+- “启动设置 → 保存位置”新增当前用户登录后自启动，默认关闭。ClassIsland 仍可独立启动程序。已有实例时，重复启动会退出，避免同时启动多个实例。
+- 可在同一选项卡选择账户、默认日志和 EdgeTTS 缓存的专用目录，便于把教室电脑的数据保存在 D 盘。旧配置缺少新字段时仍读取 `OPEN_REMOTE_SHOUTER_DATA_DIR`，显式指定的 `OPEN_REMOTE_SHOUTER_LOG_FILE` 继续优先。切换目录需要重启软件，已有账户不会自动迁移。
+- 开启局域网访问后，可在主机浏览器中使用本机局域网 IP 创建首个管理员。远端首次初始化仍需可信中转。账户文件为空、损坏或不可读时，WebUI 提供更明确的排查和恢复提示。
+- 切换到 Microsoft Edge Services 的 TTS WebSocket 接口。MP3 仍为默认格式。如果接口拒绝 WAV，程序会用 MP3 重试，Linux 需有支持 MP3 的播放器。语音不可用时，管理员可在 WebUI 的“服务状态”查看提示，文字喊话仍可使用。
+- 修复全屏喊话窗口的关闭图标没有居中的问题。
+
+### English
+
+- Added optional per-user launch at login under Startup settings → Save location. It is off by default, and ClassIsland can still launch the app independently. A second launch exits if an instance is already running.
+- Added a picker for a dedicated account, default log, and EdgeTTS cache directory, so classroom deployments can keep data on D. Older settings without the new field continue to use `OPEN_REMOTE_SHOUTER_DATA_DIR`. An explicit `OPEN_REMOTE_SHOUTER_LOG_FILE` still takes precedence. Restart the app after changing directories. Move existing accounts manually if needed.
+- With LAN access enabled, a browser on the host can use its own LAN IP to create the first administrator. Remote first-time setup still requires a trusted relay. The WebUI gives clearer recovery guidance for empty, corrupt, or unreadable account files.
+- Switched to the Microsoft Edge Services TTS WebSocket endpoint. MP3 remains the default. If the endpoint rejects WAV, the app retries with MP3, which requires an MP3-compatible player on Linux. Administrators can see speech errors under Service status in the WebUI. Text announcements remain available.
+- Fixed the alignment of the close icon in the full-screen announcement window.
+
+[完整改动 / Full comparison](https://github.com/YU322142/OpenRemoteShouter/compare/0.1.2.0...0.1.2.1)
+
 ## 0.1.2.0 - 2026-10-25
 
 ### 中文

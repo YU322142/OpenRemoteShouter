@@ -73,10 +73,12 @@
             VerticalAlignment="Top"
             HorizontalContentAlignment="Center"
             VerticalContentAlignment="Center"
-            Click="CloseButton_OnClick"
-            Content="×"
-            FontSize="28"
-            FontWeight="Regular" />
+            AutomationProperties.Name="关闭喊话"
+            Click="CloseButton_OnClick">
+      <PathIcon Width="16"
+                Height="16"
+                Data="M 0,2 L 2,0 L 8,6 L 14,0 L 16,2 L 10,8 L 16,14 L 14,16 L 8,10 L 2,16 L 0,14 L 6,8 Z" />
+    </Button>
 
     <!-- Kept hidden for compatibility with the duration timer API. -->
     <TextBlock x:Name="CountdownText" IsVisible="False" />

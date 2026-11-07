@@ -51,6 +51,18 @@
             </Grid>
             <TextBlock Text="配置文件名为 startup-settings.json。修改保存位置时，会将当前设置保存到新位置，原配置文件会保留。"
                        TextWrapping="Wrap" Foreground="#616161" />
+            <TextBlock Text="账户与日志数据目录" FontSize="18" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox x:Name="DataDirectoryBox" Watermark="例如：D:\OpenRemoteShouterData"
+                       AutomationProperties.Name="账户与日志数据目录" />
+              <Button Grid.Column="1" Margin="8,0,0,0" Content="选择文件夹…" Click="BrowseDataDirectoryButton_OnClick" />
+            </Grid>
+            <TextBlock Text="accounts.json、日志和语音缓存会使用此目录。冰点还原 C 盘时，请选择 D 盘等持久磁盘。留空则沿用系统默认目录。"
+                       TextWrapping="Wrap" FontSize="12" Foreground="#616161" />
+            <ToggleSwitch x:Name="AutoStartToggle" Content="开机自启动"
+                          OnContent="已开启" OffContent="已关闭" />
+            <TextBlock Text="按当前用户启用，不需要管理员权限。系统登录后会直接启动程序，CI 仍可独立使用。"
+                       TextWrapping="Wrap" FontSize="12" Foreground="#616161" />
             <Border Padding="14" Background="#F5F9FF" CornerRadius="6">
               <TextBlock Text="使用冰点还原时，请选择不会被还原的磁盘（例如 D 盘）。程序目录还会保存位置记录，也需要允许写入并在重启后保留。"
                          TextWrapping="Wrap" Foreground="#385271" />

@@ -64,7 +64,7 @@ To let a phone or computer on the same LAN connect through this computer's IP ad
 OPEN_REMOTE_SHOUTER_ALLOW_LAN=1
 ```
 
-Open Startup settings (启动设置) from the desktop console or tray menu, enable LAN access under Network access, and save. Fully exit and restart the program. Settings default to the application directory, with a custom folder also available, and load when starting the program directly, automatically through CI, or through `run.bat` / `run.sh`. The packaged scripts also retain commented environment-variable settings; when no local configuration exists, these can be enabled before launching through the script. Temporary launch examples:
+Open Startup settings (启动设置) from the desktop console or tray menu, enable LAN access under Network access, and save. Fully exit and restart the program. It reads saved settings whether launched directly, through ClassIsland (CI), or through `run.bat` / `run.sh`. If you have no saved configuration, uncomment the setting in the packaged launcher or use one of the temporary launch commands below.
 
 ```powershell
 # Windows PowerShell
@@ -77,7 +77,7 @@ $env:OPEN_REMOTE_SHOUTER_ALLOW_LAN = "1"
 OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 ./run.sh --foreground
 ```
 
-After enabling LAN access, the desktop console lists an `http://<lan-ip>:21212/` address, or its HTTPS equivalent. Complete the first administrator setup locally before signing in from another device. If the address is still unreachable, restart the program, allow TCP port `21212` through the firewall, and use an address shown in the console.
+After enabling LAN access, the desktop console lists an `http://<lan-ip>:21212/` address, or its HTTPS equivalent. A browser on the host computer can use `localhost`, `127.0.0.1`, or the host's own LAN IP for the first administrator setup. Other devices should sign in after initialization. If the address is still unreachable, restart the program, allow TCP port `21212` through the firewall, and use an address shown in the console.
 
 > Without a certificate, LAN mode transmits passwords, sessions, and announcement content over plaintext HTTP. Configure HTTPS or use the trusted relay design below outside a controlled network.
 
@@ -85,15 +85,17 @@ After enabling LAN access, the desktop console lists an `http://<lan-ip>:21212/`
 
 After login, the WebUI opens on the announcement page. Topmost behavior, speech, voice, rate, volume, closing the current display, and settings import/export are under Debug settings. Browser settings are stored per login name in a local Cookie. A successful send can be cancelled or followed by another announcement.
 
-The desktop console shows service status and access addresses, copies addresses, runs a local display test, closes the current display, and starts or stops the web service. Left-clicking the tray icon opens the console; right-clicking opens the menu. Stopping the web service requires the password of any enabled administrator. Exiting is allowed before the first administrator is created; afterward, exiting also requires an administrator password. Operating-system force termination, such as Task Manager, remains outside the application's control.
+The desktop console shows service status and access addresses, copies addresses, runs a local display test, closes the current display, and starts or stops the web service. Left-click the tray icon for the console or right-click for the menu. Stopping the web service requires the password of any enabled administrator. You can exit before creating the first administrator. Afterward, exiting also requires an administrator password. Operating-system force termination, such as Task Manager, remains outside the application's control.
 
 Startup settings provides Network access, Save location, Trusted relay, and HTTPS tabs on every platform for the configuration location, LAN access, relay IPs, remote first-run setup and its token, the PFX certificate path and password, and the HTTPS requirement. It includes random setup-token generation and a certificate file picker. Opening settings requires an administrator password once an administrator exists; before initial setup, you can configure settings, exit, and restart directly.
 
-Choose Application directory (default) or Custom folder as the save location; a folder picker is available, and the filename is always `startup-settings.json`. A custom location is recorded in `startup-settings-location.json` beside the EXE / DLL, so direct EXE launches and CI auto-start can find the configuration. Keep this location record with the application. Saving does not change system environment variables. Overwriting an existing configuration backs it up as `startup-settings.json.bak` in the selected directory; the first save creates no backup, and changing locations does not delete the previous configuration. The dialog shows the full configuration path. An unwritable configuration or application directory causes an error instead of falling back to the C drive.
+Launch at login under Save location is off by default. On supported platforms, enabling it registers startup for the current user without system administrator permissions. ClassIsland startup can be used independently. A second launch exits if an instance is already running. With Deep Freeze, the system startup entry must also survive restoration. Save it while the system is thawed or keep using ClassIsland to launch the app.
 
-Fully exit and restart the program to apply changes; stopping and starting the web service does not reload these settings. Saved values override the corresponding launcher or system environment variables, so direct EXE launches and CI auto-start use the same settings.
+Choose Application directory (default) or Custom folder for `startup-settings.json`. The app records custom paths in `startup-settings-location.json` beside the executable. Keep this record with the app when deploying it. Overwriting an existing configuration creates `startup-settings.json.bak` in the selected directory. Changing locations leaves the previous file in place. The dialog shows the full configuration path and reports an error if either directory is unwritable. Saving leaves system environment variables alone. Fully exit and restart the app to load saved values and override the corresponding environment variables.
 
-For example, installing in `D:\OpenRemoteShouter\` and selecting Application directory keeps startup settings there, suitable for classrooms where Deep Freeze restores the C drive. With a custom location, both the configuration and the location record beside the application must reside on persistent paths excluded from restoration. With the default location, copy the application folder and configuration together to deploy to other classrooms. With a custom location, also retain the location record and ensure its target path is available; adjust relay IPs, setup tokens, and certificate paths as needed. Account and log directories still follow the configuration reference below. Passwords and tokens are masked in the dialog but stored as plaintext in the configuration and potentially its backup. Keep both files private.
+The account and log data directory holds `accounts.json`, the default log, and the `EdgeTTS` cache. Choose a dedicated directory writable only by the account that runs the app, or leave it blank to use the system default. If a packaged launcher or another caller sets `OPEN_REMOTE_SHOUTER_LOG_FILE`, logs still go to the file specified by that variable. Changing directories leaves the old account file in place. To keep existing accounts, save the new directory, exit the app, back up and copy the existing `accounts.json` into the new directory, then restart.
+
+If Deep Freeze restores the C drive, for example, install the app in `D:\OpenRemoteShouter\`, save its startup configuration in the application directory, and set the data directory to `D:\OpenRemoteShouterData\`. With a custom configuration folder, keep both the configuration and the location record on paths that survive restoration. After copying a deployment to another classroom, check that both the configuration and data paths are available and adjust relay IPs, setup tokens, and certificate paths as needed. The configuration and backup may contain plaintext passwords and tokens. Keep these files private.
 
 ## Accounts and permissions
 
@@ -106,7 +108,7 @@ The first WebUI visit must create an administrator account locally. After initia
 - The current administrator cannot remove their own administrator role, disable their own account, or delete it. At least one enabled administrator is always retained.
 - During upgrade, missing or duplicate themes are assigned deterministically to unused themes in `accounts.json` order and persisted. When there are more than 20 accounts, remaining conflicts require manual administrator cleanup.
 
-If a fresh extraction shows “account service unavailable” or unexpectedly asks for login, check the data directory used by the actual process, the permissions and integrity of `accounts.json`, and the log. The Windows default is `%LOCALAPPDATA%\OpenRemoteShouter\accounts.json`. Upgrading or extracting a new package does not clear existing accounts; a corrupt or empty account database is rejected instead of reopening setup.
+If the page shows “account service unavailable” or unexpectedly asks for login, check the data directory in use, the permissions and integrity of `accounts.json`, and the log. The Windows default is `%LOCALAPPDATA%\OpenRemoteShouter\accounts.json`. Upgrading or extracting a new package preserves existing accounts. An empty, corrupt, or unreadable account file triggers an error. For a fresh install with an accidentally created empty file, move it aside, restart, and initialize the account database. Restore a backup if accounts already exist.
 
 ### Security design
 
@@ -344,7 +346,7 @@ With a certificate configured, the service provides HTTPS on that port and displ
 
 ## Configuration reference
 
-Settings are read when the application starts; fully restart OpenRemoteShouter after changing them. Startup settings saves LAN, relay, and HTTPS configuration as `startup-settings.json` in the application directory by default, or in a custom folder recorded by `startup-settings-location.json` beside the application. These values override the seven corresponding environment variables below; environment variables apply when no local configuration has been saved. Other settings continue to use environment variables. Boolean environment variables accept `1`/`0`, `true`/`false`, `yes`/`no`, or `on`/`off`.
+Fully restart OpenRemoteShouter after changing startup settings. LAN, relay, HTTPS, and data directory values in `startup-settings.json` override their corresponding environment variables. With no saved configuration, the app uses the environment variables. `0.1.2.0` configuration files still work. If `dataDirectory` is absent, `OPEN_REMOTE_SHOUTER_DATA_DIR` continues to apply. Saving a blank data directory selects the system default. Boolean environment variables accept `1`/`0`, `true`/`false`, `yes`/`no`, or `on`/`off`.
 
 | Environment variable | Default | Purpose |
 | --- | --- | --- |
@@ -357,14 +359,14 @@ Settings are read when the application starts; fully restart OpenRemoteShouter a
 | `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS` | Unset | Comma- or semicolon-separated fixed relay IPs, up to 32 entries; wildcard addresses are rejected. |
 | `OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP` | `0` | Allow remote first-administrator setup through a trusted relay. |
 | `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN` | Unset | Remote setup token containing 32 to 512 bytes. |
-| `OPEN_REMOTE_SHOUTER_DATA_DIR` | System user-data directory | Directory for `accounts.json` and the default log. |
-| `OPEN_REMOTE_SHOUTER_LOG_FILE` | Log file under the data directory | Custom log file path. |
+| `OPEN_REMOTE_SHOUTER_DATA_DIR` | System user-data directory | Directory for `accounts.json`, the default log, and the `EdgeTTS` cache. |
+| `OPEN_REMOTE_SHOUTER_LOG_FILE` | Log file under the data directory | An explicit file path takes precedence over the default log path derived from the data directory. |
 | `OPEN_REMOTE_SHOUTER_LOG_CONSOLE` | Automatic | Force logs to be written to the terminal as well. |
 | `OPEN_REMOTE_SHOUTER_LOG_MAX_BYTES` | `10485760` | Per-log-file limit, 10 MiB by default. |
 | `OPEN_REMOTE_SHOUTER_LOG_MAX_FILES` | `3` | Number of rotated log files. |
 | `OPEN_REMOTE_SHOUTER_TTS_CACHE_MAX_BYTES` | `268435456` | Total TTS cache limit, 256 MiB by default. |
 | `OPEN_REMOTE_SHOUTER_TTS_CACHE_MAX_FILES` | `512` | Maximum number of cached TTS files. |
-| `OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT` | `mp3` | EdgeTTS output format; use `wav` for older environments. |
+| `OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT` | `mp3` | Set to `wav` to request WAV first. If the endpoint rejects WAV, the app retries with MP3. |
 | `OPEN_REMOTE_SHOUTER_AUDIO_PLAYER` | Auto-detected | Linux audio-player command, for example `ffplay`. |
 | `OPEN_REMOTE_SHOUTER_SOFTWARE_RENDERING` | `0` | Force Avalonia software rendering; the LoongArch Old World package sets `1`. |
 | `OPEN_REMOTE_SHOUTER_X11_ENABLE_IME` | `1` | Control X11 input methods; the LoongArch Old World package uses `auto`. |
@@ -373,7 +375,7 @@ Account data is stored in `accounts.json` under the system user-data directory b
 
 ## Linux audio dependencies
 
-EdgeTTS generates MP3 audio by default. On Linux, the program searches for these players in order:
+EdgeTTS uses the Microsoft Edge Services WebSocket endpoint and generates MP3 audio by default. If the endpoint rejects WAV, the app retries with MP3. Administrators can see speech errors under Service status in the WebUI. Text announcements remain available. On Linux, the program searches for these players in order:
 
 When speech playback is enabled, announcement text is sent to Microsoft's Bing EdgeTTS service for synthesis. Disable speech for sensitive content, or use a self-hosted TTS service.
 
@@ -383,13 +385,13 @@ When speech playback is enabled, announcement text is sent to Microsoft's Bing E
 - `cvlc`
 - `vlc`
 
-For older environments that support WAV only, change the EdgeTTS output format:
+To request WAV first, set the output format:
 
 ```bash
 OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT=wav ./OpenRemoteShouter
 ```
 
-With WAV selected, the program also tries `paplay` and `aplay`. The LoongArch64 Old World ABI 1.0 packaging script uses WAV by default.
+When synthesis produces WAV, the app also tries `paplay` and `aplay`. The LoongArch64 Old World ABI 1.0 launcher requests WAV first. Playing fallback audio on Linux requires an MP3-compatible player such as `ffplay`.
 
 To override the selected player temporarily:
 
@@ -454,7 +456,7 @@ The LoongArch Old World build follows ClassIsland's X11 compatibility approach:
 - `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=llvmpipe`, and `AVALONIA_RENDERING_FORCE_SOFTWARE=1` are set by default.
 - DBus menus and DBus file pickers are disabled by default.
 - `OPEN_REMOTE_SHOUTER_X11_ENABLE_IME=auto` detects Fcitx DBus automatically. IME is disabled when Fcitx is unavailable so an X11 input-method failure does not affect the UI.
-- WAV EdgeTTS output remains the default to reduce audio-decoder differences on older systems.
+- The launcher requests WAV first and retries with MP3 if the endpoint rejects WAV.
 
 Overrides are available:
 

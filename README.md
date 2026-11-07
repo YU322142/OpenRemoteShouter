@@ -65,7 +65,7 @@ OpenRemoteShouter 是一个局域网远程喊话工具。它在电脑上启动�
 OPEN_REMOTE_SHOUTER_ALLOW_LAN=1
 ```
 
-可以在桌面控制台或托盘菜单中打开“启动设置”，在“网络访问”中开启局域网访问并保存，然后完全退出、重新启动程序。配置默认保存在程序目录，也可选择自定义文件夹；直接启动程序、由 CI 自动启动或通过 `run.bat` / `run.sh` 启动都会读取。发布包的脚本也保留环境变量配置行；没有本地配置时，可以手动取消注释后通过脚本启动。也可以临时启动：
+可以在桌面控制台或托盘菜单中打开“启动设置”，在“网络访问”中开启局域网访问并保存，然后完全退出、重新启动程序。直接启动、通过 ClassIsland（CI）启动或使用 `run.bat` / `run.sh` 都会读取已保存的配置。没有本地配置时，可以取消发布包脚本中对应环境变量的注释，或使用下面的临时启动方式。
 
 ```powershell
 # Windows PowerShell
@@ -78,7 +78,7 @@ $env:OPEN_REMOTE_SHOUTER_ALLOW_LAN = "1"
 OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 ./run.sh --foreground
 ```
 
-启用后，桌面控制台的访问地址列表会出现 `http://<局域网IP>:21212/` 或对应的 HTTPS 地址。请先在本机完成管理员初始化，再从其他设备登录。如果仍无法连接，请确认程序已经重启、防火墙已放行 TCP `21212`，且访问的是控制台列出的地址。
+启用后，桌面控制台的访问地址列表会出现 `http://<局域网IP>:21212/` 或对应的 HTTPS 地址。本机浏览器可以使用 `localhost`、`127.0.0.1` 或本机自己的局域网 IP 完成管理员初始化，其他设备请在初始化后登录。如果仍无法连接，请确认程序已经重启、防火墙已放行 TCP `21212`，且访问的是控制台列出的地址。
 
 > 未配置证书时，开启局域网访问会把密码、会话和喊话内容放在明文 HTTP 中传输。可信网络之外应配置 HTTPS，或使用后文的可信中转方案。
 
@@ -86,15 +86,17 @@ OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 ./run.sh --foreground
 
 登录 WebUI 后默认进入喊话页。置顶、语音、说话人、语速、音量、关闭当前显示以及设置导入/导出位于“调试设置”中；浏览器设置按登录用户名保存在本地 Cookie 中。发送成功后可以撤回当前显示或继续发送下一条消息。
 
-桌面控制台可以查看服务状态和访问地址、复制地址、进行本机显示测试、关闭当前显示以及启动或停止网页服务。托盘左键打开控制台，右键打开菜单。停止网页服务需要任意一个启用中的管理员密码。首次创建管理员前可直接退出软件；创建后，退出也需要管理员密码。任务管理器等操作系统级强制结束不在软件拦截范围内。
+桌面控制台可以查看服务状态和访问地址、复制地址、进行本机显示测试、关闭当前显示以及启动或停止网页服务。托盘左键打开控制台，右键打开菜单。停止网页服务需要任意一个启用中的管理员密码。首次创建管理员前可直接退出软件，创建后退出也需要管理员密码。任务管理器等操作系统级强制结束不在软件拦截范围内。
 
 各平台的“启动设置”均提供“网络访问”“保存位置”“可信中转”和“HTTPS”四个选项卡，可修改配置保存位置、局域网开关、中转 IP、远程首次初始化开关与令牌，以及 PFX 证书路径、密码和强制 HTTPS 开关。支持生成随机初始化令牌和选择证书文件。已有管理员账户时，打开设置需要管理员密码；首次初始化前可直接配置并退出重启。
 
-保存位置可选“程序目录”（默认）或“自定义文件夹”，支持浏览选择，文件名固定为 `startup-settings.json`。选择自定义位置时，程序会在 EXE / DLL 同目录的 `startup-settings-location.json` 中记录路径，确保直接启动 EXE 或由 CI 自动启动时仍能找到配置；请将这份位置记录与程序一起保留。保存不修改系统环境变量。覆盖已有配置时，原文件会在所选目录备份为 `startup-settings.json.bak`；首次保存不生成备份，更改位置不会删除旧配置文件。界面会显示完整保存路径，配置目录或程序目录不可写时会报错，不会改存到 C 盘。
+“保存位置”中的“开机自启动”默认关闭。在支持的平台上，开启后会为当前用户注册登录启动项，无须系统管理员权限。ClassIsland 自启动可独立使用。已有实例时，重复启动会退出。冰点环境中的系统启动项也需在还原后保留，可在解冻状态下保存启动项，或继续用 ClassIsland 启动程序。
 
-修改需完全退出、重新启动程序才能生效；仅停止再启动网页服务不会重新读取这些设置。配置优先于对应的启动脚本或系统环境变量，因此直接启动 EXE 或由 CI 自动启动也能使用相同设置。
+启动配置可保存到“程序目录”（默认）或“自定义文件夹”，文件名固定为 `startup-settings.json`。自定义路径记录在程序同目录的 `startup-settings-location.json`，部署时请与程序一并保留。覆盖已有配置时，原文件会在所选目录备份为 `startup-settings.json.bak`。切换位置会保留原文件。界面会显示完整保存路径，配置目录或程序目录不可写时会报错。保存不修改系统环境变量。完全退出并重新启动程序后，才会读取保存的值并覆盖对应环境变量。
 
-例如程序放在 `D:\OpenRemoteShouter\` 并选择“程序目录”，启动配置就保存在该目录，适合 C 盘有冰点还原的教室。自定义位置时，配置文件和程序目录中的位置记录都应放在不会被还原的路径。使用默认位置可将程序文件夹和配置一起复制到其他班级；使用自定义位置时，还需保留位置记录并确认目标路径可用，再按需调整中转 IP、初始化令牌和证书路径。账户与日志的数据目录仍按下方配置参考处理。密码和令牌虽然在界面中隐藏，仍以明文保存在配置文件及可能的备份中，请妥善保管。
+“账户与日志数据目录”用于存放 `accounts.json`、默认日志和 `EdgeTTS` 缓存。请使用仅运行账户可写的专用目录，留空时使用系统默认数据目录。如果发布包脚本或启动方设置了 `OPEN_REMOTE_SHOUTER_LOG_FILE`，日志会写入该变量指定的文件。切换目录会保留旧账户文件。需要沿用已有账户时，请保存新目录后退出软件，备份旧 `accounts.json` 并复制到新目录，再启动程序。
+
+例如，C 盘有冰点还原时，可以把程序放在 `D:\OpenRemoteShouter\`，将启动配置保存在程序目录，并把数据目录设为 `D:\OpenRemoteShouterData\`。选择自定义配置位置时，配置文件和程序目录中的位置记录都应存放在不会被还原的路径。复制到其他教室后，请确认配置和数据路径可用，并按需调整中转 IP、初始化令牌和证书路径。配置文件及备份可能包含明文密码和令牌，请妥善保管。
 
 ## 账户与权限
 
@@ -107,7 +109,7 @@ OPEN_REMOTE_SHOUTER_ALLOW_LAN=1 ./run.sh --foreground
 - 当前管理员不能取消自己的管理员权限、禁用或删除自己的账户，系统始终至少保留一个启用中的管理员。
 - 从旧版本升级时，缺失或重复的主题色会按 `accounts.json` 中的稳定顺序分配到未使用的主题色并自动写回；账户超过 20 个时，剩余重复项需要管理员手动处理。
 
-如果全新解压后页面显示“账户服务不可用”或意外显示登录页，请检查实际运行账户的数据目录、`accounts.json` 的权限与完整性以及日志。Windows 默认账户文件为 `%LOCALAPPDATA%\OpenRemoteShouter\accounts.json`。升级或重新解压不会清空旧账户；损坏或空的账户数据库会被拒绝加载，不会自动重新进入初始化。
+如果页面显示“账户服务不可用”或意外显示登录页，请检查实际使用的数据目录、`accounts.json` 的权限与完整性以及日志。Windows 默认账户文件为 `%LOCALAPPDATA%\OpenRemoteShouter\accounts.json`。升级或重新解压会保留旧账户。空白、损坏或不可读的账户文件会触发错误提示。全新安装可先移走误创建的空白文件，再重启并初始化。已有账户请恢复备份。
 
 ### 安全设计
 
@@ -345,7 +347,7 @@ curl -fsS https://class.example.test/api/auth/state
 
 ## 配置参考
 
-配置在程序启动时读取，修改后必须完全重启 OpenRemoteShouter。“启动设置”将局域网、中转和 HTTPS 配置保存为 `startup-settings.json`（默认在程序目录，可选自定义文件夹），优先于下表对应的七项环境变量；自定义路径由程序目录中的 `startup-settings-location.json` 记录。未保存本地配置时沿用环境变量，其他配置继续通过环境变量设置。环境变量布尔值可使用 `1`/`0`、`true`/`false`、`yes`/`no` 或 `on`/`off`。
+配置在程序启动时读取，修改后必须完全重启 OpenRemoteShouter。`startup-settings.json` 中的局域网、中转、HTTPS 和数据目录字段优先于对应环境变量。未保存本地配置时沿用环境变量。`0.1.2.0` 的配置仍可读取，缺少 `dataDirectory` 时继续使用 `OPEN_REMOTE_SHOUTER_DATA_DIR`。保存空的数据目录会使用系统默认路径。环境变量布尔值可使用 `1`/`0`、`true`/`false`、`yes`/`no` 或 `on`/`off`。
 
 | 环境变量 | 默认值 | 用途 |
 | --- | --- | --- |
@@ -358,14 +360,14 @@ curl -fsS https://class.example.test/api/auth/state
 | `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_IPS` | 未设置 | 逗号或分号分隔的固定可信中转 IP，最多 32 个，不接受通配地址。 |
 | `OPEN_REMOTE_SHOUTER_ALLOW_TRUSTED_PROXY_SETUP` | `0` | 允许通过可信中转进行远程首次管理员初始化。 |
 | `OPEN_REMOTE_SHOUTER_TRUSTED_PROXY_SETUP_TOKEN` | 未设置 | 远程首次初始化令牌，需包含 32 至 512 字节。 |
-| `OPEN_REMOTE_SHOUTER_DATA_DIR` | 系统用户数据目录 | `accounts.json` 和默认日志所在的数据目录。 |
-| `OPEN_REMOTE_SHOUTER_LOG_FILE` | 数据目录中的日志文件 | 自定义日志文件路径。 |
+| `OPEN_REMOTE_SHOUTER_DATA_DIR` | 系统用户数据目录 | 存放 `accounts.json`、默认日志和 `EdgeTTS` 缓存。 |
+| `OPEN_REMOTE_SHOUTER_LOG_FILE` | 数据目录中的日志文件 | 显式设置时优先于数据目录计算出的默认日志路径。 |
 | `OPEN_REMOTE_SHOUTER_LOG_CONSOLE` | 自动 | 强制将日志同时输出到终端。 |
 | `OPEN_REMOTE_SHOUTER_LOG_MAX_BYTES` | `10485760` | 单个日志文件上限，默认 10 MiB。 |
 | `OPEN_REMOTE_SHOUTER_LOG_MAX_FILES` | `3` | 日志轮转文件数量。 |
 | `OPEN_REMOTE_SHOUTER_TTS_CACHE_MAX_BYTES` | `268435456` | TTS 缓存总大小上限，默认 256 MiB。 |
 | `OPEN_REMOTE_SHOUTER_TTS_CACHE_MAX_FILES` | `512` | TTS 缓存文件数量上限。 |
-| `OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT` | `mp3` | EdgeTTS 输出格式；可设为 `wav` 兼容旧环境。 |
+| `OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT` | `mp3` | 设为 `wav` 会优先请求 WAV。如果接口拒绝 WAV，程序会用 MP3 重试。 |
 | `OPEN_REMOTE_SHOUTER_AUDIO_PLAYER` | 自动检测 | Linux 下指定音频播放器命令，例如 `ffplay`。 |
 | `OPEN_REMOTE_SHOUTER_SOFTWARE_RENDERING` | `0` | 强制 Avalonia 软件渲染；龙芯旧世界发布脚本默认设为 `1`。 |
 | `OPEN_REMOTE_SHOUTER_X11_ENABLE_IME` | `1` | 控制 X11 输入法；龙芯旧世界发布脚本默认使用 `auto`。 |
@@ -374,7 +376,7 @@ curl -fsS https://class.example.test/api/auth/state
 
 ## Linux 语音依赖
 
-EdgeTTS 默认生成 MP3 音频。Linux 下程序会按顺序寻找以下播放器：
+EdgeTTS 通过 Microsoft Edge Services 的 WebSocket 接口合成音频，默认使用 MP3。如果接口拒绝 WAV，程序会用 MP3 重试。语音不可用时，管理员可在 WebUI 的“服务状态”查看错误，文字喊话仍可使用。Linux 下程序会按顺序寻找以下播放器：
 
 启用语音播报时，喊话文本会发送到 Microsoft Bing EdgeTTS 服务进行合成；包含敏感信息的内容请关闭语音或采用自托管 TTS。
 
@@ -384,13 +386,13 @@ EdgeTTS 默认生成 MP3 音频。Linux 下程序会按顺序寻找以下播放�
 - `cvlc`
 - `vlc`
 
-如果需要兼容只支持 WAV 的旧环境，可以切换 EdgeTTS 输出格式：
+如需优先请求 WAV，可设置输出格式：
 
 ```bash
 OPEN_REMOTE_SHOUTER_EDGE_TTS_FORMAT=wav ./OpenRemoteShouter
 ```
 
-切换为 WAV 后，程序也会继续尝试 `paplay` 和 `aplay`。LoongArch64 Old World ABI 1.0 打包脚本会默认使用 WAV。
+实际生成 WAV 时，程序也会尝试 `paplay` 和 `aplay`。LoongArch64 Old World ABI 1.0 打包脚本默认优先请求 WAV。Linux 下播放回退的 MP3 音频需要支持 MP3 的播放器，例如 `ffplay`。
 
 如果某个播放器在当前桌面环境中退出成功但实际没有声音，可以临时指定播放器：
 
@@ -455,7 +457,7 @@ export OPEN_REMOTE_SHOUTER_TTS_CACHE_MAX_FILES=512
 - 默认设置 `LIBGL_ALWAYS_SOFTWARE=1`、`GALLIUM_DRIVER=llvmpipe` 和 `AVALONIA_RENDERING_FORCE_SOFTWARE=1`。
 - 默认禁用 DBus 菜单和 DBus 文件选择器。
 - `OPEN_REMOTE_SHOUTER_X11_ENABLE_IME=auto` 会自动检测 Fcitx DBus；没有可用 Fcitx 时禁用 IME，避免 X11 输入法链路异常影响 UI。
-- 默认继续使用 WAV EdgeTTS 输出，减少旧环境音频解码依赖变化。
+- 默认优先请求 WAV。接口拒绝 WAV 时会重试 MP3。
 
 可手动覆盖：
 

@@ -106,6 +106,7 @@ public sealed class SpeechQueueService
                 AppLogService.Info(
                     $"Speech started. voice={workItem.VoiceName}, format={EdgeTtsClient.CurrentOutputFormat}, rate={workItem.Rate}, volume={workItem.Volume.ToString("0.00", CultureInfo.InvariantCulture)}, length={workItem.Text.Length}");
                 var filePath = await EnsureSpeechCacheAsync(workItem, cts.Token);
+                cts.Token.ThrowIfCancellationRequested();
                 var duration = AudioPlaybackService.TryGetDuration(filePath);
                 if (duration is not null && workItem.DurationAvailable is not null)
                 {
@@ -169,6 +170,7 @@ public sealed class SpeechQueueService
         SpeechWorkItem workItem,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var cacheDirectory = GetCacheDirectory();
         if (IsReparsePoint(cacheDirectory))
         {
@@ -178,21 +180,17 @@ public sealed class SpeechQueueService
         EnforceCacheQuota(cacheDirectory, protectedPath: null);
         var outputFormat = EdgeTtsClient.CurrentOutputFormat;
         var cachePath = GetCachePath(workItem, cacheDirectory, outputFormat);
-        if (IsReparsePoint(cachePath))
+        if (TryUseCachedAudio(cachePath))
         {
-            throw new InvalidDataException("Speech cache contains a reparse point.");
+            return cachePath;
         }
 
-        if (File.Exists(cachePath))
+        var fallbackPath = outputFormat == EdgeTtsClient.WavOutputFormat
+            ? GetCachePath(workItem, cacheDirectory, EdgeTtsClient.Mp3OutputFormat)
+            : null;
+        if (fallbackPath is not null && TryUseCachedAudio(fallbackPath))
         {
-            var existingLength = new FileInfo(cachePath).Length;
-            if (existingLength > 0 && existingLength <= EdgeTtsClient.MaximumAudioBytes)
-            {
-                AppLogService.Info($"Speech cache hit. path={cachePath}, bytes={existingLength}");
-                return cachePath;
-            }
-
-            File.Delete(cachePath);
+            return fallbackPath;
         }
 
         Directory.CreateDirectory(cacheDirectory);
@@ -200,13 +198,36 @@ public sealed class SpeechQueueService
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(18));
 
-        var audio = await _edgeTtsClient.SynthesizeAsync(
-            workItem.Text,
-            workItem.VoiceName,
-            outputFormat,
-            workItem.Rate,
-            workItem.Volume,
-            timeout.Token);
+        async Task<byte[]> SynthesizeAsync(string format)
+        {
+            try
+            {
+                return await _edgeTtsClient.SynthesizeAsync(
+                    workItem.Text, workItem.VoiceName, format, workItem.Rate, workItem.Volume, timeout.Token);
+            }
+            catch (OperationCanceledException ex) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException("在线语音合成超时，文字喊话仍可使用。", ex);
+            }
+        }
+
+        byte[] audio;
+        try
+        {
+            audio = await SynthesizeAsync(outputFormat);
+        }
+        catch (EdgeTtsClient.OutputFormatRejectedException) when (fallbackPath is not null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            cachePath = fallbackPath;
+            if (TryUseCachedAudio(cachePath))
+            {
+                return cachePath;
+            }
+
+            AppLogService.Info("EdgeTTS rejected WAV output. Retrying with MP3.");
+            audio = await SynthesizeAsync(EdgeTtsClient.Mp3OutputFormat);
+        }
 
         if (audio.Length == 0 || audio.LongLength > EdgeTtsClient.MaximumAudioBytes)
         {
@@ -244,6 +265,29 @@ public sealed class SpeechQueueService
         EnforceCacheQuota(cacheDirectory, cachePath);
         AppLogService.Info($"Speech cache written. path={cachePath}, bytes={audio.Length}");
         return cachePath;
+    }
+
+    private static bool TryUseCachedAudio(string path)
+    {
+        if (IsReparsePoint(path))
+        {
+            throw new InvalidDataException("Speech cache contains a reparse point.");
+        }
+
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        var length = new FileInfo(path).Length;
+        if (length > 0 && length <= EdgeTtsClient.MaximumAudioBytes)
+        {
+            AppLogService.Info($"Speech cache hit. path={path}, bytes={length}");
+            return true;
+        }
+
+        File.Delete(path);
+        return false;
     }
 
     private static string GetCachePath(
@@ -328,16 +372,7 @@ public sealed class SpeechQueueService
 
     private static string GetCacheDirectory()
     {
-        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrWhiteSpace(localData))
-        {
-            localData = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".local",
-                "share");
-        }
-
-        var path = Path.Combine(localData, "OpenRemoteShouter", "EdgeTTS");
+        var path = Path.Combine(AppLogService.DataDirectory, "EdgeTTS");
         try
         {
             Directory.CreateDirectory(path);

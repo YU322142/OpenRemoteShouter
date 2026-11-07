@@ -16,7 +16,7 @@ public sealed class StartupSettingsService
     private static readonly string[] PropertyNames =
     [
         "allowLan", "trustedProxyIps", "allowTrustedProxySetup", "trustedProxySetupToken",
-        "httpsCertificatePath", "httpsCertificatePassword", "requireHttps"
+        "httpsCertificatePath", "httpsCertificatePassword", "requireHttps", "dataDirectory"
     ];
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -75,6 +75,7 @@ public sealed class StartupSettingsService
         var destination = Path.GetFullPath(settingsPath ?? SettingsPath);
         RejectMetadataDestination(destination);
         var normalized = Validate(settings, destination);
+        ValidateDataDirectoryTarget(normalized.DataDirectory);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(normalized, JsonOptions);
         if (bytes.Length > MaximumSettingsBytes)
         {
@@ -139,7 +140,8 @@ public sealed class StartupSettingsService
             ("TRUSTED_PROXY_SETUP_TOKEN", settings.TrustedProxySetupToken),
             ("HTTPS_CERT_PATH", settings.HttpsCertificatePath),
             ("HTTPS_CERT_PASSWORD", settings.HttpsCertificatePassword),
-            ("REQUIRE_HTTPS", settings.RequireHttps ? "1" : "0")
+            ("REQUIRE_HTTPS", settings.RequireHttps ? "1" : "0"),
+            ("DATA_DIR", settings.DataDirectory)
         };
         foreach (var (name, value) in values)
         {
@@ -154,7 +156,7 @@ public sealed class StartupSettingsService
         var strings = new[]
         {
             settings.TrustedProxyIps, settings.TrustedProxySetupToken,
-            settings.HttpsCertificatePath, settings.HttpsCertificatePassword
+            settings.HttpsCertificatePath, settings.HttpsCertificatePassword, settings.DataDirectory
         };
         if (strings.Any(value => value is null || value.Contains('\0')))
         {
@@ -231,7 +233,54 @@ public sealed class StartupSettingsService
             }
         }
 
-        return settings with { TrustedProxyIps = proxyIps, HttpsCertificatePath = certificatePath };
+        var dataDirectory = settings.DataDirectory.Trim();
+        if (dataDirectory.Length > 0)
+        {
+            try
+            {
+                dataDirectory = Path.GetFullPath(dataDirectory);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+            {
+                throw new InvalidOperationException("账户与日志数据目录路径无效。", ex);
+            }
+        }
+
+        return settings with
+        {
+            TrustedProxyIps = proxyIps,
+            HttpsCertificatePath = certificatePath,
+            DataDirectory = dataDirectory
+        };
+    }
+
+    private static void ValidateDataDirectoryTarget(string path)
+    {
+        if (path.Length == 0)
+        {
+            return;
+        }
+
+        FileAttributes attributes;
+        try
+        {
+            attributes = File.GetAttributes(path);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            // A new data directory will be created on startup.
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new InvalidOperationException("无法访问账户数据目录，请检查路径和权限。", ex);
+        }
+
+        if ((attributes & FileAttributes.Directory) == 0
+            || (attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidOperationException("请选择一个普通文件夹作为账户数据目录。");
+        }
     }
 
     private string ResolveLocation(byte[]? bytes)
@@ -298,12 +347,13 @@ public sealed class StartupSettingsService
                 }
             }
 
-            if (properties.Count != PropertyNames.Length)
+            // dataDirectory is the only field absent from settings saved by older releases.
+            if (PropertyNames.Any(name => name != "dataDirectory" && !properties.ContainsKey(name)))
             {
                 throw new JsonException();
             }
 
-            foreach (var name in PropertyNames)
+            foreach (var name in PropertyNames.Where(name => properties.ContainsKey(name)))
             {
                 var kind = properties[name].ValueKind;
                 var isBoolean = name is "allowLan" or "allowTrustedProxySetup" or "requireHttps";
@@ -314,7 +364,14 @@ public sealed class StartupSettingsService
             }
 
             var settings = document.RootElement.Deserialize<StartupSettings>(JsonOptions) ?? throw new JsonException();
-            if (new[] { settings.TrustedProxyIps, settings.TrustedProxySetupToken, settings.HttpsCertificatePath, settings.HttpsCertificatePassword }
+            if (!properties.ContainsKey("dataDirectory"))
+            {
+                settings = settings with
+                {
+                    DataDirectory = Environment.GetEnvironmentVariable(Prefix + "DATA_DIR") ?? string.Empty
+                };
+            }
+            if (new[] { settings.TrustedProxyIps, settings.TrustedProxySetupToken, settings.HttpsCertificatePath, settings.HttpsCertificatePassword, settings.DataDirectory }
                 .Any(value => value.Contains('\0')))
             {
                 throw new JsonException();
@@ -469,7 +526,8 @@ public sealed class StartupSettingsService
             ?? IsTruthy(Get("ALLOW_INSECURE_HTTP"));
         return new StartupSettings(
             allowLan, Get("TRUSTED_PROXY_IPS"), IsTruthy(Get("ALLOW_TRUSTED_PROXY_SETUP")),
-            Get("TRUSTED_PROXY_SETUP_TOKEN"), Get("HTTPS_CERT_PATH"), Get("HTTPS_CERT_PASSWORD"), IsTruthy(Get("REQUIRE_HTTPS")));
+            Get("TRUSTED_PROXY_SETUP_TOKEN"), Get("HTTPS_CERT_PATH"), Get("HTTPS_CERT_PASSWORD"),
+            IsTruthy(Get("REQUIRE_HTTPS")), Get("DATA_DIR"));
     }
 
     private static bool? ParseBoolean(string value) => value.Trim().ToLowerInvariant() switch

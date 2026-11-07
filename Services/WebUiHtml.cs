@@ -1049,6 +1049,7 @@ public static class WebUiHtml
               <div><span>语音后端</span><strong id="speechBackendText">-</strong></div>
               <div><span>日志文件</span><strong id="logPathText">-</strong></div>
             </div>
+            <fluent-message-bar id="speechStatusNotice" class="hidden" intent="error" role="status"></fluent-message-bar>
             <p id="statusAddressNote" class="status-address-note">本机地址仅供运行软件的电脑访问，不在此处显示。远程访问请使用已配置的域名或中转地址。</p>
             <ul id="urlList" class="url-list"></ul>
           </div>
@@ -1290,7 +1291,7 @@ public static class WebUiHtml
       const response = await fetch(path, { ...options, headers, credentials: 'same-origin' });
       const body = await response.json().catch(() => ({ ok: false, error: '响应格式错误。' }));
       if (!response.ok || body.ok === false) {
-        const error = new Error(body.error || '请求失败。');
+        const error = new Error(body.message || body.error || '请求失败。');
         error.status = response.status;
         throw error;
       }
@@ -1524,7 +1525,7 @@ public static class WebUiHtml
         setAuthState(body.state);
       } catch (error) {
         showAuthUnavailable(error.status === 503
-          ? '账户数据库无法读取。请检查数据目录、accounts.json 文件权限和日志，然后重启程序。'
+          ? error.message
           : '无法读取账户状态。请确认服务正在运行后重试。');
       } finally {
         $('authRetry').disabled = false;
@@ -1598,6 +1599,12 @@ public static class WebUiHtml
         $('serverStatusBadge').setAttribute('color', isRunning ? 'success' : 'danger');
         $('portText').textContent = status.port ?? status.Port ?? '-';
         $('speechBackendText').textContent = status.speechBackend ?? status.SpeechBackend ?? '-';
+        const speechError = status.speechError ?? status.SpeechError;
+        if (speechError) {
+          showNotice($('speechStatusNotice'), `语音播报暂不可用：${speechError}。文字喊话仍可使用。`, true);
+        } else {
+          hideNotice($('speechStatusNotice'));
+        }
         $('logPathText').textContent = (status.logFilePath ?? status.LogFilePath) || '仅管理员可见';
         $('urlList').innerHTML = '';
         const isLocalOnlyUrl = value => {

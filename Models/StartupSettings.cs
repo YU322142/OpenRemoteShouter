@@ -7,4 +7,5 @@ public sealed record StartupSettings(
     string TrustedProxySetupToken,
     string HttpsCertificatePath,
     string HttpsCertificatePassword,
-    bool RequireHttps);
+    bool RequireHttps,
+    string DataDirectory = "");

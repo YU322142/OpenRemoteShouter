@@ -9,6 +9,7 @@ namespace RemoteShouter.Views;
 public partial class StartupSettingsWindow : Window
 {
     private readonly StartupSettingsService? _settingsService;
+    private bool _autoStartEnabled;
 
     public StartupSettingsWindow()
     {
@@ -29,6 +30,10 @@ public partial class StartupSettingsWindow : Window
         CertificatePathBox.Text = settings.HttpsCertificatePath;
         CertificatePasswordBox.Text = settings.HttpsCertificatePassword;
         RequireHttpsToggle.IsChecked = settings.RequireHttps;
+        DataDirectoryBox.Text = settings.DataDirectory;
+        AutoStartToggle.IsEnabled = StartupService.IsSupported;
+        _autoStartEnabled = StartupService.IsSupported && StartupService.IsEnabled;
+        AutoStartToggle.IsChecked = _autoStartEnabled;
         CustomSettingsFolderBox.Text = Path.GetDirectoryName(settingsService.SettingsPath);
         var isDefaultLocation = PathsEqual(settingsService.SettingsPath, settingsService.DefaultSettingsPath);
         DefaultLocationRadioButton.IsChecked = isDefaultLocation;
@@ -46,6 +51,7 @@ public partial class StartupSettingsWindow : Window
 
         SaveButton.IsEnabled = false;
         ErrorBorder.IsVisible = false;
+        var settingsSaved = false;
         try
         {
             _settingsService.Save(new StartupSettings(
@@ -55,12 +61,20 @@ public partial class StartupSettingsWindow : Window
                 SetupTokenBox.Text ?? string.Empty,
                 CertificatePathBox.Text?.Trim() ?? string.Empty,
                 CertificatePasswordBox.Text ?? string.Empty,
-                RequireHttpsToggle.IsChecked == true), GetSelectedSettingsPath());
+                RequireHttpsToggle.IsChecked == true,
+                DataDirectoryBox.Text?.Trim() ?? string.Empty), GetSelectedSettingsPath());
+            settingsSaved = true;
+            var autoStartEnabled = AutoStartToggle.IsChecked == true;
+            if (StartupService.IsSupported && autoStartEnabled != _autoStartEnabled)
+            {
+                StartupService.SetEnabled(autoStartEnabled);
+                _autoStartEnabled = autoStartEnabled;
+            }
             Close(true);
         }
         catch (Exception ex)
         {
-            ShowError(ex.Message);
+            ShowError(settingsSaved ? $"启动设置已保存，但更新开机自启动失败。{ex.Message}" : ex.Message);
         }
         finally
         {
@@ -183,6 +197,26 @@ public partial class StartupSettingsWindow : Window
         catch
         {
             ShowError("无法打开文件夹选择器，请直接填写文件夹的完整路径。");
+        }
+    }
+
+    private async void BrowseDataDirectoryButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "选择账户与日志数据目录",
+                AllowMultiple = false
+            });
+            if (folders.Count > 0 && folders[0].TryGetLocalPath() is { } path)
+            {
+                DataDirectoryBox.Text = path;
+            }
+        }
+        catch
+        {
+            ShowError("无法打开文件夹选择器，请直接填写数据目录的完整路径。");
         }
     }
 

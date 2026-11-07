@@ -10,6 +10,12 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        using var singleInstanceMutex = TryAcquireSingleInstance(out var isFirstInstance);
+        if (!isFirstInstance)
+        {
+            return;
+        }
+
         AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
         {
             if (eventArgs.ExceptionObject is Exception ex)
@@ -33,7 +39,8 @@ internal static class Program
             new StartupSettingsService().ApplySavedSettingsToEnvironment();
 
             AppLogService.Info(
-                $"Application starting. os={Environment.OSVersion}, processPath={Environment.ProcessPath}, logFile={AppLogService.LogFilePath}");
+                $"Application starting. os={Environment.OSVersion}, processPath={Environment.ProcessPath}, "
+                + $"autostartup={StartupService.IsAutostartupInvocation(args)}, logFile={AppLogService.LogFilePath}");
 
             BuildAvaloniaApp()
                 .StartWithClassicDesktopLifetime(args);
@@ -47,6 +54,20 @@ internal static class Program
         }
     }
 
+    private static Mutex? TryAcquireSingleInstance(out bool isFirstInstance)
+    {
+        try
+        {
+            var mutex = new Mutex(true, "OpenRemoteShouter.SingleInstance", out isFirstInstance);
+            return mutex;
+        }
+        catch (Exception ex)
+        {
+            isFirstInstance = true;
+            AppLogService.Error("Failed to create single-instance guard", ex);
+            return null;
+        }
+    }
     public static AppBuilder BuildAvaloniaApp()
     {
         ConfigureLinuxX11Environment();
